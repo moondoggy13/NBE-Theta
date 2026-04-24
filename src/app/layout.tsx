@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NB&E Triangle | Trading Command Center",
-  description: "High-Conviction Directional Equity System - Command & Control Dashboard",
+  title: "NBE-Theta | Δ Core",
+  description: "BTC tick-stream quant trading platform",
 };
 
 export default function RootLayout({
@@ -25,14 +25,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
-    >
-      <body className="min-h-full bg-background text-foreground">
-        <TooltipProvider>
-          {children}
-        </TooltipProvider>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="min-h-full text-slate-800">
+        <TooltipProvider>{children}</TooltipProvider>
         <Toaster />
       </body>
     </html>

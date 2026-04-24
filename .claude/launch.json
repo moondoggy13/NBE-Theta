@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "nbe-triangle",
-      "runtimeExecutable": "pnpm",
+      "name": "nbe-theta",
+      "runtimeExecutable": "C:\\Users\\16085\\AppData\\Roaming\\npm\\pnpm.cmd",
       "runtimeArgs": ["dev"],
-      "port": 3000
+      "port": 4200
     }
   ]
 }
