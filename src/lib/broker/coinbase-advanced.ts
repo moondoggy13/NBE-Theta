@@ -12,7 +12,7 @@
  * in depth against accidental live order placement.
  */
 import { createPrivateKey, randomBytes } from "node:crypto";
-import { importPKCS8, SignJWT, type KeyLike } from "jose";
+import { SignJWT, type KeyLike } from "jose";
 import type {
   Account,
   BrokerClient,
@@ -164,9 +164,11 @@ export class CoinbaseAdvancedClient implements BrokerClient {
     if (!this.keyPromise) {
       const raw = this.opts.apiPrivateKey.trim();
       if (raw.includes("BEGIN")) {
-        // PEM (ECDSA)
+        // PEM — accept both PKCS#8 (`BEGIN PRIVATE KEY`) and SEC1
+        // (`BEGIN EC PRIVATE KEY`); Node's createPrivateKey handles both.
         const pem = raw.replace(/\\n/g, "\n");
-        this.keyPromise = importPKCS8(pem, "ES256").then((key) => ({ key, kind: "es256" as const }));
+        const key = createPrivateKey({ key: pem, format: "pem" }) as unknown as KeyLike;
+        this.keyPromise = Promise.resolve({ key, kind: "es256" as const });
       } else {
         // Base64 Ed25519 — 64 bytes (32 seed + 32 public) is the common CDP export shape.
         const bytes = Buffer.from(raw, "base64");

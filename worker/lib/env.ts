@@ -12,6 +12,18 @@ if (!process.env.SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_URL) {
 if (!process.env.COINBASE_API_PRIVATE_KEY && process.env.COINBASE_API_SECRET_KEY) {
   process.env.COINBASE_API_PRIVATE_KEY = process.env.COINBASE_API_SECRET_KEY;
 }
+// CDP v2 keys carry a project_id + bare key UUID. The Coinbase Advanced Trade
+// JWT `kid` for these keys is `projects/{PROJECT_ID}/apiKeys/{KID}`. If the
+// user supplied PROJECT_ID + KID and the key name is unset or just a bare
+// UUID, build the full path. Leave names that already include a slash alone.
+{
+  const projectId = process.env.COINBASE_PROJECT_ID ?? process.env.PROJECT_ID;
+  const kid = process.env.KID ?? process.env.COINBASE_API_KEY_NAME;
+  const current = process.env.COINBASE_API_KEY_NAME ?? "";
+  if (projectId && kid && !current.includes("/")) {
+    process.env.COINBASE_API_KEY_NAME = `projects/${projectId}/apiKeys/${kid}`;
+  }
+}
 
 const Env = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),

@@ -200,3 +200,29 @@ alter publication supabase_realtime add table strategy_signals;
 alter publication supabase_realtime add table pnl_snapshots;
 alter publication supabase_realtime add table risk_state;
 alter publication supabase_realtime add table system_logs;
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- Row Level Security
+--   Worker writes via service_role and bypasses RLS automatically.
+--   Dashboard reads via anon — needs explicit SELECT policies. v1 is a
+--   single-tenant trading bot, so anon gets read-everything; lock down
+--   later if multi-tenant ever applies.
+-- ────────────────────────────────────────────────────────────────────────────
+do $$
+declare
+  t text;
+  tables text[] := array[
+    'candles', 'ticks', 'l2_snapshots', 'strategy_signals',
+    'orders', 'fills', 'positions', 'pnl_snapshots',
+    'risk_state', 'backtest_runs', 'system_logs'
+  ];
+begin
+  foreach t in array tables loop
+    execute format('alter table %I enable row level security', t);
+    execute format(
+      'drop policy if exists "anon read %1$s" on %1$I; '
+      || 'create policy "anon read %1$s" on %1$I for select to anon using (true);',
+      t
+    );
+  end loop;
+end $$;
