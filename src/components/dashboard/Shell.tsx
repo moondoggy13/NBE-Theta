@@ -4,6 +4,7 @@ import { Activity, Briefcase, Settings, ShieldAlert, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BackgroundMesh } from "./BackgroundMesh";
 import { GlassPanel } from "./GlassPanel";
+import { PriceTicker } from "./PriceTicker";
 import { OverviewTab } from "./tabs/Overview";
 import { PositionsTab } from "./tabs/Positions";
 import { SignalEngineTab } from "./tabs/SignalEngine";
@@ -86,14 +87,15 @@ export function DeltaShell() {
 
         {/* Main */}
         <div className="flex-1 flex flex-col h-full gap-6 overflow-hidden">
-          <GlassPanel className="h-20 flex-shrink-0 flex items-center justify-between px-8 py-0" withCorners>
-            <div className="flex items-center gap-6">
+          <GlassPanel className="h-20 flex-shrink-0 flex items-center justify-between px-8 py-0 gap-6" withCorners>
+            <div className="flex items-center gap-6 shrink-0">
               <h1 className="text-2xl font-light tracking-tight text-slate-800">
                 <span className="font-semibold">Δ CORE</span>
-                <span className="ml-3 text-xs font-mono text-slate-500">· NBE-Theta · BTC-USD</span>
+                <span className="ml-3 text-xs font-mono text-slate-500">· NBE-Theta</span>
               </h1>
             </div>
-            <div className="text-right">
+            <PriceTicker />
+            <div className="text-right shrink-0">
               <div className="text-[10px] font-mono text-slate-500">T-SYNC // UTC</div>
               <div className="text-sm font-mono font-medium text-slate-800 tabular-nums">{clock}</div>
             </div>

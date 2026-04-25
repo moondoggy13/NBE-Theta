@@ -53,8 +53,12 @@ export function useRealtime<T extends Row>(opts: UseRealtimeOptions<T>) {
       setLoading(false);
     })();
 
+    // Unique channel name per hook instance — Supabase reuses channels by
+    // name, which breaks under React Strict Mode double-invoke and when
+    // multiple components subscribe to the same table.
+    const channelName = `rt:${opts.table}:${Math.random().toString(36).slice(2)}`;
     const channel = sb
-      .channel(`rt:${opts.table}`)
+      .channel(channelName)
       .on(
         // @ts-expect-error — Supabase types are loose for generic changes
         "postgres_changes",

@@ -18,6 +18,7 @@ import { bootstrapCandles, startFeed } from "./feed";
 import { buildEnsembleOptions, buildStrategies, evaluate } from "./engine";
 import { currentUtcDay, type RiskState } from "../src/lib/risk/kill-switch";
 import { SupabaseSink } from "./supabase-sink";
+import { HOT_KEYS, redisClient } from "../src/lib/redis/client";
 
 async function main() {
   const env = loadEnv();
@@ -53,6 +54,10 @@ async function main() {
     },
   });
 
+  const redis = redisClient();
+  // Tick-rate rolling counter (last 60s)
+  const tickTimes: number[] = [];
+
   const execution = new ExecutionManager({
     env,
     cfg,
@@ -85,6 +90,19 @@ async function main() {
       const mock = broker as unknown as MockBrokerClient;
       if (typeof mock.setReferencePrice === "function") mock.setReferencePrice(tick.price);
       void execution.onPriceUpdate(tick.price);
+
+      // Hot cache: latest price + rolling tick rate. Fire-and-forget; Redis
+      // unavailability is logged elsewhere and shouldn't block the loop.
+      if (redis) {
+        const now = Date.now();
+        tickTimes.push(now);
+        while (tickTimes.length && tickTimes[0] < now - 60_000) tickTimes.shift();
+        void redis.mset({
+          [HOT_KEYS.lastPrice]: String(tick.price),
+          [HOT_KEYS.lastPriceTs]: String(now),
+          [HOT_KEYS.tickRate]: String(tickTimes.length),
+        }).catch(() => {});
+      }
     },
     onCandleClose: async (_candle, fs) => {
       const { decision, signals } = evaluate(strategies, fs, ensembleOpts, env.SYMBOL);

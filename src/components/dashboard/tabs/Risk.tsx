@@ -2,6 +2,7 @@
 
 import { ShieldAlert } from "lucide-react";
 import { GlassPanel } from "../GlassPanel";
+import { LogsFeed } from "../LogsFeed";
 import { useRealtime } from "@/hooks/use-realtime";
 import { formatCurrency, formatPercent } from "@/lib/formatters";
 
@@ -38,7 +39,9 @@ export function RiskTab() {
     ? "HALT"
     : p && r && p.equity < r.daily_start_equity * 0.95
     ? "LVL 4"
-    : "LVL 2";
+    : (p?.drawdown_pct ?? 0) > 2
+      ? "LVL 3"
+      : "LVL 2";
 
   async function toggleKillSwitch(next: boolean) {
     await fetch("/api/kill-switch", {
@@ -49,23 +52,20 @@ export function RiskTab() {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
       <GlassPanel
         title="Global Risk Matrix"
-        className="col-span-full md:col-span-1 relative overflow-hidden bg-[#0a0505] border-slate-800 min-h-[400px]"
+        className="lg:col-span-1 relative overflow-hidden bg-[#0a0505] border-slate-800 min-h-[420px]"
         withCorners
       >
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-[150%] h-[150%] bg-[radial-gradient(ellipse_at_center,_#1e1b4b_0%,_#701a75_35%,_#be123c_65%,_#ea580c_100%)] opacity-80 blur-2xl" />
         </div>
         <div className="relative z-10 h-full flex flex-col items-center justify-center py-10">
-          <div className="w-48 h-48 rounded-full border border-orange-500/30 flex items-center justify-center bg-black/40 backdrop-blur-md relative">
+          <div className="w-44 h-44 rounded-full border border-orange-500/30 flex items-center justify-center bg-black/40 backdrop-blur-md relative">
             <div className="absolute inset-0 rounded-full border-t-2 border-orange-400 animate-spin-slow" />
             <div className="text-center">
-              <ShieldAlert
-                size={36}
-                className="text-orange-400 mx-auto mb-2 drop-shadow-[0_0_15px_rgba(234,88,12,0.8)]"
-              />
+              <ShieldAlert size={32} className="text-orange-400 mx-auto mb-2 drop-shadow-[0_0_15px_rgba(234,88,12,0.8)]" />
               <div className="text-3xl font-light text-white tracking-tighter">{level}</div>
             </div>
           </div>
@@ -83,8 +83,8 @@ export function RiskTab() {
         </div>
       </GlassPanel>
 
-      <GlassPanel title="Exposure & Daily Budget" className="col-span-full md:col-span-1 bg-white/40" withCorners>
-        <div className="space-y-6 mt-4">
+      <GlassPanel title="Exposure & Daily Budget" className="lg:col-span-1 bg-white/40" withCorners>
+        <div className="space-y-6 mt-2">
           <Bar
             label="Daily loss used"
             pct={r ? Math.max(0, Math.min(100, (r.daily_loss_dollars / (r.daily_start_equity * 0.10 || 1)) * 100)) : 0}
@@ -104,7 +104,17 @@ export function RiskTab() {
             subtitle={r?.autonomous_execution ? "ARMED" : "SAFE"}
             color="bg-emerald-500"
           />
+          <Bar
+            label="Day anchor"
+            pct={100}
+            subtitle={r?.day_anchor_utc ? `${r.day_anchor_utc} (UTC)` : "—"}
+            color="bg-slate-400"
+          />
         </div>
+      </GlassPanel>
+
+      <GlassPanel title="System Logs" className="lg:col-span-1 bg-white/40" withCorners>
+        <LogsFeed height={420} />
       </GlassPanel>
     </div>
   );
