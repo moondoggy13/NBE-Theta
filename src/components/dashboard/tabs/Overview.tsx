@@ -170,10 +170,10 @@ export function OverviewTab() {
       >
         <CornerTicks />
         <div className="absolute top-6 left-1/2 -translate-x-1/2 text-[10px] font-mono text-slate-400 uppercase tracking-[0.3em]">
-          Equity Curve · {pnl.length} snapshots
+          Equity Curve
         </div>
         <div className="flex-1 mt-12 mb-4 px-4">
-          <EquityChart height={300} />
+          <EquityChart height={300} referenceEquity={25000} />
         </div>
         <div className="absolute bottom-6 left-0 right-0 flex justify-around">
           <Stat label="confidence" value={ensembleLatest ? `${(ensembleLatest.confidence * 100).toFixed(0)}%` : "—"} />
