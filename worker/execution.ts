@@ -1,7 +1,14 @@
 /**
- * ExecutionManager: takes ensemble decisions, applies risk gates, sizes
- * the position, routes orders through the configured broker. Enforces
- * the two-flag live gate at every call site (defense in depth).
+ * ExecutionManager — turns ensemble decisions into orders with full risk
+ * + cooldown gates. Bug history note: an earlier version pasted in a flat
+ * 50bp stop and used a 0.25 ensemble threshold, which caused thrashing on
+ * minute bars (319 trades / 53h, ~$16k in fees, equity bled to 38% of start).
+ * This version:
+ *   - uses the strategy's ATR-based entryHint when present
+ *   - enforces a configurable cooldown after every close
+ *   - requires N consecutive same-side decisions before opening
+ *   - blocks new entries on lifetime + daily drawdown via shouldBlock
+ *   - persists daily_loss + day_anchor + peak via the supplied setRiskState
  */
 import type { BrokerClient, Fill, Order } from "../src/lib/broker/types";
 import { MockBrokerClient } from "../src/lib/broker/mock";
@@ -9,9 +16,24 @@ import { CoinbaseAdvancedClient } from "../src/lib/broker/coinbase-advanced";
 import type { RiskPreset } from "../src/lib/risk/config";
 import { maybeRollDay, shouldBlock, type RiskState } from "../src/lib/risk/kill-switch";
 import { positionSize } from "../src/lib/risk/sizer";
-import type { EnsembleDecision } from "../src/lib/signals/types";
+import type { EnsembleDecision, Side } from "../src/lib/signals/types";
 import type { Logger } from "./lib/logger";
 import { isLiveEnabled, type AppEnv } from "./lib/env";
+
+export interface ExecutionConfig {
+  /** Minimum ms between closing a position and opening a new one. */
+  cooldownMs: number;
+  /** Number of consecutive same-side ensemble decisions before entering. */
+  requireConsecutive: number;
+  /** Fallback stop in fraction of price when strategy supplies no entryHint. */
+  fallbackStopPct: number;
+}
+
+export const EXECUTION_DEFAULTS: ExecutionConfig = {
+  cooldownMs: 5 * 60_000,    // 5 minutes
+  requireConsecutive: 2,     // need two bars in a row
+  fallbackStopPct: 0.015,    // 150 bps, generous default if no ATR hint
+};
 
 export interface ExecutionDeps {
   env: AppEnv;
@@ -21,17 +43,21 @@ export interface ExecutionDeps {
   logger: Logger;
   getRiskState(): RiskState;
   setRiskState(update: Partial<RiskState>): void;
+  execCfg?: Partial<ExecutionConfig>;
 }
 
 export class ExecutionManager {
-  private lastSide: "long" | "short" | "flat" = "flat";
+  private lastSide: Side = "flat";
   private currentStop?: number;
   private currentTarget?: number;
+  private lastClosedAt = 0;
+  private consecutiveCount = 0;
+  private consecutiveSide: Side = "flat";
+  private readonly execCfg: ExecutionConfig;
 
   constructor(private readonly deps: ExecutionDeps) {
+    this.execCfg = { ...EXECUTION_DEFAULTS, ...(deps.execCfg ?? {}) };
     this.deps.broker.onFill((fill, order) => this.onFill(fill, order));
-    // Defense in depth: if a live broker is in play but gating is disabled,
-    // refuse at construction time. Mock broker is always fine.
     if (deps.broker.mode === "live" && !isLiveEnabled(deps.env)) {
       throw new Error("Live broker instantiated without COINBASE_LIVE=true && CONFIRM_LIVE=YES");
     }
@@ -40,41 +66,79 @@ export class ExecutionManager {
   async onDecision(decision: EnsembleDecision, lastPrice: number): Promise<void> {
     const { cfg, broker, logger } = this.deps;
 
-    // Roll UTC day if needed
-    this.deps.setRiskState(
-      maybeRollDay(this.deps.getRiskState(), await this.currentEquity(), new Date()),
-    );
-
-    const state = this.deps.getRiskState();
+    // 1. Mark-to-market and roll the UTC day if needed.
     const equity = await this.currentEquity();
-    const block = shouldBlock(cfg, state, equity);
+    this.deps.setRiskState(maybeRollDay(this.deps.getRiskState(), equity, new Date()));
+    const state = this.deps.getRiskState();
 
-    // Flat / reversal → close existing position regardless of gates
-    if (this.lastSide !== "flat" && decision.side !== this.lastSide) {
-      await this.closeIfOpen(lastPrice);
+    // 2. Update consecutive-decision tracker.
+    if (decision.side === this.consecutiveSide) {
+      this.consecutiveCount += 1;
+    } else {
+      this.consecutiveSide = decision.side;
+      this.consecutiveCount = 1;
     }
 
+    // 3. Always honor reversal/flat: close any open position regardless of gates.
+    const wantReverse =
+      this.lastSide !== "flat" &&
+      decision.side !== "flat" &&
+      decision.side !== this.lastSide;
+    const wantFlat = this.lastSide !== "flat" && decision.side === "flat";
+
+    if (wantReverse || wantFlat) {
+      await this.closeIfOpen(lastPrice, wantReverse ? "reverse" : "signal_flat");
+    }
     if (decision.side === "flat") return;
 
+    // 4. Pre-entry gates.
+    const block = shouldBlock(cfg, state, equity);
     if (block.blocked) {
-      logger.warn({ reason: block.reason, decision: decision.side }, "order blocked");
+      logger.warn(
+        { reason: block.reason, decision: decision.side, equity, dayStart: state.dayStartEquity, lifetimeStart: state.lifetimeStartEquity },
+        "entry blocked by risk gate",
+      );
+      return;
+    }
+    if (this.lastSide === decision.side) return;
+    if (this.consecutiveCount < this.execCfg.requireConsecutive) {
+      logger.debug(
+        { side: decision.side, consecutive: this.consecutiveCount, need: this.execCfg.requireConsecutive },
+        "decision needs more confirmation bars",
+      );
+      return;
+    }
+    const sinceClose = Date.now() - this.lastClosedAt;
+    if (this.lastClosedAt > 0 && sinceClose < this.execCfg.cooldownMs) {
+      logger.debug(
+        { side: decision.side, sinceCloseMs: sinceClose, cooldownMs: this.execCfg.cooldownMs },
+        "in cooldown after recent close",
+      );
       return;
     }
 
-    if (this.lastSide === decision.side) return; // already in that side
-
-    // Determine stop/target from contributing strategy hints (first one with entryHint)
-    const firstHint = decision.contributing.find((c) => c.side === decision.side && c.weight > 0);
-    if (!firstHint) return;
-
-    // Entry price = lastPrice; stop/target from ensemble metadata placeholder
-    // NOTE: production paths plumb entryHint through the signal → ensemble;
-    // here we fall back to ATR-agnostic percentage defaults.
-    const side = decision.side;
+    // 5. Resolve stop/target. Prefer the strategy's ATR-based entryHint.
+    const side: Exclude<Side, "flat"> = decision.side;
     const entry = lastPrice;
-    const stopPct = 0.005; // 50 bps default fallback
-    const stop = side === "long" ? entry * (1 - stopPct) : entry * (1 + stopPct);
-    const target = side === "long" ? entry * (1 + stopPct * 2) : entry * (1 - stopPct * 2);
+    const hint = decision.contributing.find(
+      (c) => c.side === side && c.weight > 0 && c.entryHint,
+    )?.entryHint;
+    let stop: number;
+    let target: number;
+    if (hint) {
+      stop = hint.stop;
+      target = hint.target;
+    } else {
+      const sp = this.execCfg.fallbackStopPct;
+      stop = side === "long" ? entry * (1 - sp) : entry * (1 + sp);
+      target = side === "long" ? entry * (1 + sp * 2) : entry * (1 - sp * 2);
+    }
+
+    // Sanity: if hint stop is on wrong side of entry (data bug), refuse.
+    if ((side === "long" && stop >= entry) || (side === "short" && stop <= entry)) {
+      logger.warn({ side, entry, stop, target }, "entry hint stop on wrong side of entry; skipping");
+      return;
+    }
 
     const qty = positionSize(cfg, { equity, entry, stop });
     if (qty === 0) {
@@ -89,13 +153,19 @@ export class ExecutionManager {
         type: "market",
         qty,
         strategyId: "ensemble",
-        metadata: { decisionScore: decision.score, confidence: decision.confidence },
+        metadata: {
+          decisionScore: decision.score,
+          confidence: decision.confidence,
+          stop,
+          target,
+          consecutive: this.consecutiveCount,
+        },
       });
       this.lastSide = side;
       this.currentStop = stop;
       this.currentTarget = target;
       logger.info(
-        { side, qty, entry: order.filledPrice, stop, target },
+        { side, qty, entry: order.filledPrice, stop, target, equity },
         "position opened",
       );
     } catch (err) {
@@ -103,10 +173,7 @@ export class ExecutionManager {
     }
   }
 
-  /**
-   * Called on every tick/bar update to check stop/target.
-   * Returns true if a close was issued (so the caller can recompute).
-   */
+  /** Stop/target check on every tick. Returns true if a close was issued. */
   async onPriceUpdate(price: number): Promise<boolean> {
     if (this.lastSide === "flat") return false;
     const hitStop =
@@ -116,13 +183,13 @@ export class ExecutionManager {
       (this.lastSide === "long" && price >= (this.currentTarget ?? Infinity)) ||
       (this.lastSide === "short" && price <= (this.currentTarget ?? -Infinity));
     if (hitStop || hitTarget) {
-      await this.closeIfOpen(price);
+      await this.closeIfOpen(price, hitStop ? "stop" : "target");
       return true;
     }
     return false;
   }
 
-  private async closeIfOpen(price: number): Promise<void> {
+  private async closeIfOpen(price: number, reason: string): Promise<void> {
     if (this.lastSide === "flat") return;
     const positions = await this.deps.broker.getPositions();
     const pos = positions[0];
@@ -138,15 +205,16 @@ export class ExecutionManager {
         type: "market",
         qty: Math.abs(pos.qty),
         strategyId: "ensemble",
-        metadata: { reason: "close", price },
+        metadata: { reason, price },
       });
-      this.deps.logger.info({ side: this.lastSide, closedAt: price }, "position closed");
+      this.deps.logger.info({ side: this.lastSide, closedAt: price, reason }, "position closed");
     } catch (err) {
       this.deps.logger.error({ err }, "close order failed");
     }
     this.lastSide = "flat";
     this.currentStop = undefined;
     this.currentTarget = undefined;
+    this.lastClosedAt = Date.now();
   }
 
   private async currentEquity(): Promise<number> {

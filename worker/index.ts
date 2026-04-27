@@ -16,7 +16,11 @@ import { buildBroker, ExecutionManager } from "./execution";
 import type { MockBrokerClient } from "../src/lib/broker/mock";
 import { bootstrapCandles, startFeed } from "./feed";
 import { buildEnsembleOptions, buildStrategies, evaluate } from "./engine";
-import { currentUtcDay, type RiskState } from "../src/lib/risk/kill-switch";
+import {
+  makeInitialRiskState,
+  shouldBlock,
+  type RiskState,
+} from "../src/lib/risk/kill-switch";
 import { SupabaseSink } from "./supabase-sink";
 import { HOT_KEYS, redisClient } from "../src/lib/redis/client";
 
@@ -39,13 +43,12 @@ async function main() {
     "strategies loaded",
   );
 
-  let riskState: RiskState = {
-    killSwitchActive: false,
+  let riskState: RiskState = makeInitialRiskState({
+    startEquity: cfg.startEquity,
     autonomousExecution: env.COINBASE_MODE === "paper",
-    dayStartEquity: cfg.startEquity,
-    dailyLossDollars: 0,
-    dayAnchorUtc: currentUtcDay(),
-  };
+    lifetimeStopPct: 0.15, // -15% lifetime kill, regardless of UTC rollover
+  });
+  let killSwitchEngagedHere = false;
 
   const sink = new SupabaseSink({
     logger,
@@ -91,17 +94,17 @@ async function main() {
       if (typeof mock.setReferencePrice === "function") mock.setReferencePrice(tick.price);
       void execution.onPriceUpdate(tick.price);
 
-      // Hot cache: latest price + rolling tick rate. Fire-and-forget; Redis
-      // unavailability is logged elsewhere and shouldn't block the loop.
       if (redis) {
         const now = Date.now();
         tickTimes.push(now);
         while (tickTimes.length && tickTimes[0] < now - 60_000) tickTimes.shift();
-        void redis.mset({
-          [HOT_KEYS.lastPrice]: String(tick.price),
-          [HOT_KEYS.lastPriceTs]: String(now),
-          [HOT_KEYS.tickRate]: String(tickTimes.length),
-        }).catch(() => {});
+        void redis
+          .mset({
+            [HOT_KEYS.lastPrice]: String(tick.price),
+            [HOT_KEYS.lastPriceTs]: String(now),
+            [HOT_KEYS.tickRate]: String(tickTimes.length),
+          })
+          .catch(() => {});
       }
     },
     onCandleClose: async (_candle, fs) => {
@@ -125,10 +128,33 @@ async function main() {
         const unreal = positions.reduce((s, p) => s + p.unrealizedPnl, 0);
         const realized = positions.reduce((s, p) => s + p.realizedPnl, 0);
         const dd =
-          riskState.dayStartEquity > 0
-            ? Math.max(0, (riskState.dayStartEquity - acct.equity) / riskState.dayStartEquity * 100)
+          riskState.peakEquity > 0
+            ? Math.max(0, (riskState.peakEquity - acct.equity) / riskState.peakEquity * 100)
             : 0;
         sink.recordPnl(acct.equity, realized, unreal, dd);
+
+        // Persist daily risk fields so the dashboard reflects reality.
+        await sink.persistDailyRisk({
+          dailyLossDollars: riskState.dailyLossDollars,
+          dailyStartEquity: riskState.dayStartEquity,
+          dayAnchorUtc: riskState.dayAnchorUtc,
+        });
+
+        // If we just crossed the lifetime gate, persist kill switch so the
+        // dashboard surfaces it and the worker stays halted across restarts.
+        const block = shouldBlock(cfg, riskState, acct.equity);
+        if (
+          !killSwitchEngagedHere &&
+          block.blocked &&
+          (block.reason === "lifetime_stop_hit" || block.reason === "daily_stop_hit")
+        ) {
+          killSwitchEngagedHere = true;
+          await sink.engageKillSwitch(`${block.reason} at equity ${acct.equity.toFixed(2)}`);
+          logger.error(
+            { reason: block.reason, equity: acct.equity, peak: riskState.peakEquity },
+            "engaging kill switch",
+          );
+        }
       } catch (err) {
         logger.warn({ err: (err as Error).message }, "pnl snapshot failed");
       }

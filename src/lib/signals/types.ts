@@ -72,5 +72,12 @@ export interface EnsembleDecision {
   side: Side;
   score: number;
   confidence: number;
-  contributing: Array<{ strategyId: string; side: Side; score: number; confidence: number; weight: number }>;
+  contributing: Array<{
+    strategyId: string;
+    side: Side;
+    score: number;
+    confidence: number;
+    weight: number;
+    entryHint?: StrategySignal["entryHint"];
+  }>;
 }

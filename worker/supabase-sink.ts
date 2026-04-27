@@ -132,6 +132,47 @@ export class SupabaseSink {
     });
   }
 
+  /**
+   * Worker → DB risk-state writes. Only fields the worker owns; the dashboard
+   * controls kill_switch_active / autonomous_execution / preset and we don't
+   * want to overwrite those out from under it.
+   */
+  async persistDailyRisk(opts: {
+    dailyLossDollars: number;
+    dailyStartEquity: number;
+    dayAnchorUtc: string;
+  }): Promise<void> {
+    if (!this.client) return;
+    const { error } = await this.client
+      .from("risk_state")
+      .update({
+        daily_loss_dollars: opts.dailyLossDollars,
+        daily_start_equity: opts.dailyStartEquity,
+        day_anchor_utc: opts.dayAnchorUtc,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+    if (error) this.deps.logger.error({ err: error.message }, "risk_state persist failed");
+  }
+
+  /** Worker can engage the kill switch when lifetime/daily limits trip. */
+  async engageKillSwitch(reason: string): Promise<void> {
+    if (!this.client) return;
+    const { error } = await this.client
+      .from("risk_state")
+      .update({
+        kill_switch_active: true,
+        autonomous_execution: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+    if (!error) {
+      await this.log("error", "risk", `kill switch engaged: ${reason}`);
+    } else {
+      this.deps.logger.error({ err: error.message }, "kill switch persist failed");
+    }
+  }
+
   private async flush(): Promise<void> {
     if (!this.client) return;
     const { signals, pnl } = this.batch;

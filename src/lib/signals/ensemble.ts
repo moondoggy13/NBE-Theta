@@ -10,7 +10,11 @@ export interface EnsembleOptions {
   shortThreshold?: number; // sum must be below -this for a short decision
 }
 
-const DEFAULTS = { longThreshold: 0.25, shortThreshold: 0.25 };
+// Defaults raised after observing whip-sawing on minute candles. With two
+// strategies that often disagree, a 0.25 threshold lets noise repeatedly
+// cross the line — every flip costs ~10 bps in round-trip fees and after
+// hundreds of flips you bleed to zero. 0.4 demands clearer agreement.
+const DEFAULTS = { longThreshold: 0.4, shortThreshold: 0.4 };
 
 /**
  * Combines per-strategy signals into a single decision.
@@ -50,6 +54,7 @@ export function aggregate(
       score: sig.score,
       confidence: sig.confidence,
       weight: w,
+      entryHint: sig.entryHint,
     });
   }
 

@@ -34,11 +34,12 @@ describe("aggregate", () => {
   });
 
   it("weights bias the aggregate", () => {
-    // a: w=2, score=0.9*0.9=0.81 contribution; b: w=1, score=-0.9*0.9=-0.81 contribution
-    // weightedScore = 2*0.81 - 1*0.81 = 0.81; normalized = 0.81/3 = 0.27 > 0.25 → long
+    // a: w=3, score=0.9, conf=0.9 → 3*0.9*0.9 = 2.43
+    // b: w=1, score=-0.9, conf=0.9 → 1*-0.9*0.9 = -0.81
+    // weightedScore = 2.43 - 0.81 = 1.62; normalized = 1.62/4 = 0.405 > 0.4 → long
     const d = aggregate(
       [sig("a", "long", 0.9, 0.9), sig("b", "short", -0.9, 0.9)],
-      { weights: { a: 2, b: 1 } },
+      { weights: { a: 3, b: 1 } },
     );
     expect(d.side).toBe("long");
   });
