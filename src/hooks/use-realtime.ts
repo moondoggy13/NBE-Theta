@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { browserClient } from "@/lib/supabase/client";
 
-type Row = Record<string, unknown>;
-
-export interface UseRealtimeOptions<T extends Row> {
+// Generic row type — caller supplies a concrete shape. We intentionally
+// don't constrain to Record<string, unknown> because strict object types
+// like { id: number; ts: string } don't satisfy that index signature.
+export interface UseRealtimeOptions<T> {
   table: string;
   initialFetch?: {
     select?: string;
@@ -21,7 +22,7 @@ export interface UseRealtimeOptions<T extends Row> {
  * No-ops gracefully when the browser Supabase client is unavailable
  * (env not set) — returns an empty list + loading=false.
  */
-export function useRealtime<T extends Row>(opts: UseRealtimeOptions<T>) {
+export function useRealtime<T>(opts: UseRealtimeOptions<T>) {
   const [rows, setRows] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);

@@ -5,6 +5,7 @@ import { GlassPanel } from "../GlassPanel";
 import { EquityChart } from "../EquityChart";
 import { useRealtime } from "@/hooks/use-realtime";
 import { usePollJson } from "@/hooks/use-poll-json";
+import { useNow } from "@/hooks/use-now";
 import { formatCurrency, formatPercent } from "@/lib/formatters";
 
 interface PnlSnapshot {
@@ -50,6 +51,7 @@ export function OverviewTab() {
     initialFetch: { order: { column: "ts" }, limit: 30 },
   });
   const { data: priceResp } = usePollJson<PriceResp>("/api/price", 2000);
+  const now = useNow(5_000);
 
   const latest = pnl[0];
   const btc = positions.find((p) => p.symbol === "BTC-USD");
@@ -58,7 +60,7 @@ export function OverviewTab() {
     (id) => id !== "ensemble",
   );
   const signalsLastMin = signals.filter(
-    (s) => Date.now() - new Date(s.ts).getTime() < 60_000,
+    (s) => now - new Date(s.ts).getTime() < 60_000,
   ).length;
 
   // P&L since launch: anchor at the lifetime baseline ($25k). Avoids the

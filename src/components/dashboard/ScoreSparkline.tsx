@@ -29,9 +29,9 @@ export function ScoreSparkline({
         <LineChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
           <Tooltip
             contentStyle={{ background: "rgba(255,255,255,0.95)", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 10, padding: "4px 6px" }}
-            formatter={(v: number) => [v.toFixed(3), "score"]}
-            labelFormatter={(_: unknown, payload) => {
-              const ts = payload?.[0]?.payload?.ts;
+            formatter={(v) => [Number(v ?? 0).toFixed(3), "score"]}
+            labelFormatter={(_, payload) => {
+              const ts = (payload?.[0] as { payload?: { ts?: number } } | undefined)?.payload?.ts;
               return ts ? new Date(ts).toLocaleTimeString() : "";
             }}
           />

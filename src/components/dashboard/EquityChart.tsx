@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { useMemo, useState } from "react";
 import { useRealtime } from "@/hooks/use-realtime";
+import { useNow } from "@/hooks/use-now";
 import { formatCurrency } from "@/lib/formatters";
 import { TIMEFRAME_MS, TimeframeSelector, type Timeframe } from "./TimeframeSelector";
 
@@ -63,6 +64,7 @@ export interface EquityChartProps {
 
 export function EquityChart({ height = 320, referenceEquity = 25_000 }: EquityChartProps) {
   const [tf, setTf] = useState<Timeframe>("1h");
+  const now = useNow(10_000);
 
   const { rows: snaps } = useRealtime<PnlSnap>({
     table: "pnl_snapshots",
@@ -78,7 +80,7 @@ export function EquityChart({ height = 320, referenceEquity = 25_000 }: EquityCh
   });
 
   const { data, downtime, tradeMarkers, strategyBands, stats } = useMemo(() => {
-    const cutoff = tf === "All" ? -Infinity : Date.now() - TIMEFRAME_MS[tf];
+    const cutoff = tf === "All" ? -Infinity : now - TIMEFRAME_MS[tf];
     const filtered = [...snaps]
       .reverse()
       .map((r) => ({ ts: new Date(r.ts).getTime(), equity: Number(r.equity) }))
@@ -93,9 +95,12 @@ export function EquityChart({ height = 320, referenceEquity = 25_000 }: EquityCh
       }
     }
 
-    // Trade markers from orders that fall in window.
+    // Trade markers from orders that fall in window. Keep the order id
+    // for stable React keys — two paper fills can share the same submit
+    // timestamp when the worker closes-and-reopens in the same tick.
     const tradeMarkers = orders
       .map((o) => ({
+        id: o.id,
         ts: new Date(o.submitted_at).getTime(),
         side: o.side,
         price: o.filled_price != null ? Number(o.filled_price) : null,
@@ -126,7 +131,7 @@ export function EquityChart({ height = 320, referenceEquity = 25_000 }: EquityCh
     const stats = { minVal, maxVal, last, change, changePct, count: filtered.length };
 
     return { data: filtered, downtime, tradeMarkers, strategyBands, stats };
-  }, [snaps, orders, signals, tf, referenceEquity]);
+  }, [snaps, orders, signals, tf, referenceEquity, now]);
 
   if (data.length === 0) {
     return (
@@ -186,8 +191,8 @@ export function EquityChart({ height = 320, referenceEquity = 25_000 }: EquityCh
                 fontSize: 11,
                 padding: "6px 10px",
               }}
-              formatter={(v: number) => [formatCurrency(v), "equity"]}
-              labelFormatter={(ts: number) => new Date(ts).toLocaleString()}
+              formatter={(v) => [formatCurrency(Number(v ?? 0)), "equity"]}
+              labelFormatter={(ts) => new Date(Number(ts ?? 0)).toLocaleString()}
             />
 
             {/* Downtime bands */}
@@ -222,7 +227,7 @@ export function EquityChart({ height = 320, referenceEquity = 25_000 }: EquityCh
             {/* Trade markers */}
             {tradeMarkers.map((m) => (
               <ReferenceDot
-                key={`trade-${m.ts}-${m.side}`}
+                key={`trade-${m.id}`}
                 x={m.ts}
                 y={m.price ?? referenceEquity}
                 r={4}
@@ -254,11 +259,11 @@ export function EquityChart({ height = 320, referenceEquity = 25_000 }: EquityCh
       </div>
 
       {/* Strategy regime stripe */}
-      {strategyBands.length > 0 && (
+      {strategyBands.length > 0 && data.length > 0 && (
         <StrategyStripe
           bands={strategyBands}
-          windowStart={data[0]?.ts ?? Date.now()}
-          windowEnd={data.at(-1)?.ts ?? Date.now()}
+          windowStart={data[0].ts}
+          windowEnd={data[data.length - 1].ts}
         />
       )}
     </div>
@@ -302,7 +307,7 @@ function StrategyStripe({
                 "#cbd5e1";
               return (
                 <div
-                  key={p.ts}
+                  key={`${p.ts}-${i}`}
                   className="absolute top-0 bottom-0"
                   style={{
                     left: `${start}%`,

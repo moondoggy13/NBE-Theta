@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { PRESETS, resolveRiskConfig } from "../config";
 import { positionSize } from "../sizer";
 import {
-  currentUtcDay,
   makeInitialRiskState,
   maybeRollDay,
   shouldBlock,
