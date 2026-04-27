@@ -15,7 +15,7 @@ import { resolveRiskConfig } from "../src/lib/risk/config";
 import { buildBroker, ExecutionManager } from "./execution";
 import type { MockBrokerClient } from "../src/lib/broker/mock";
 import { bootstrapCandles, startFeed } from "./feed";
-import { buildEnsembleOptions, buildStrategies, evaluate } from "./engine";
+import { buildEnsembleOptions, buildStrategies, evaluate, evaluateMaster } from "./engine";
 import {
   makeInitialRiskState,
   shouldBlock,
@@ -23,6 +23,9 @@ import {
 } from "../src/lib/risk/kill-switch";
 import { SupabaseSink } from "./supabase-sink";
 import { HOT_KEYS, redisClient } from "../src/lib/redis/client";
+import { RegimeClassifier } from "../src/lib/regime/classifier";
+import type { MasterWeights } from "../src/lib/signals/master";
+import { EwmaVol } from "../src/lib/risk/vol-targeting";
 
 async function main() {
   const env = loadEnv();
@@ -38,10 +41,30 @@ async function main() {
   const broker = buildBroker(env, cfg);
   const strategies = buildStrategies();
   const ensembleOpts = buildEnsembleOptions(strategies);
+  const masterEnabled = process.env.MASTER_SIGNAL_ENABLED === "true";
   logger.info(
-    { strategies: strategies.map((s) => s.id), weights: ensembleOpts.weights },
+    {
+      strategies: strategies.map((s) => s.id),
+      weights: ensembleOpts.weights,
+      masterEnabled,
+    },
     "strategies loaded",
   );
+
+  // Phase-1: regime classifier + EWMA vol tracker. The classifier is
+  // warmed up by the bootstrap candles so its first live posterior is
+  // already informed.
+  const classifier = new RegimeClassifier();
+  const ewmaVol = new EwmaVol(0.94, 1);
+  let prevClose: number | null = null;
+  // Equal-weight fallback W matrix; Phase 2 fills this from `master_weights`
+  // table via a periodic IC recomputation. For Phase 1 we use 1/K equal
+  // weights across regimes which makes the master signal degrade gracefully
+  // to the legacy ensemble at warmup.
+  const masterWeights: MasterWeights = {};
+  for (const s of strategies) {
+    masterWeights[s.id] = { bull: 1, range: 1, bear: 1 };
+  }
 
   let riskState: RiskState = makeInitialRiskState({
     startEquity: cfg.startEquity,
@@ -112,18 +135,37 @@ async function main() {
           .catch(() => {});
       }
     },
-    onCandleClose: async (_candle, fs) => {
-      const { decision, signals } = evaluate(strategies, fs, ensembleOpts, env.SYMBOL);
+    onCandleClose: async (candle, fs) => {
+      // Phase-1: regime classifier update + EWMA vol tracking on each close.
+      const posterior = classifier.update(candle);
+      if (prevClose != null && prevClose > 0 && candle.c > 0) {
+        ewmaVol.push(Math.log(candle.c / prevClose));
+      }
+      prevClose = candle.c;
+
+      const { decision, signals } = masterEnabled
+        ? evaluateMaster(strategies, fs, masterWeights, posterior, env.SYMBOL)
+        : evaluate(strategies, fs, ensembleOpts, env.SYMBOL);
+
       logger.debug(
         {
           side: decision.side,
           score: decision.score.toFixed(4),
           conf: decision.confidence.toFixed(2),
+          regime: posterior.dominant,
+          pBull: posterior.probs.bull.toFixed(2),
+          pRange: posterior.probs.range.toFixed(2),
+          pBear: posterior.probs.bear.toFixed(2),
+          sigma: ewmaVol.annualized().toFixed(3),
+          path: masterEnabled ? "master" : "ensemble",
         },
-        "ensemble decision",
+        "decision",
       );
       for (const s of signals) if (s) sink.recordSignal(env.SYMBOL, s);
       sink.recordEnsembleSignal(env.SYMBOL, decision);
+
+      // Persist regime posterior for the dashboard.
+      await sink.persistRegimePosterior(posterior, ewmaVol.annualized());
 
       void execution.onDecision(decision, fs.lastPrice);
 
@@ -177,6 +219,15 @@ async function main() {
   });
 
   for (const c of bootstrap) state.candles.push(c);
+  // Warm the regime classifier + EWMA vol from the same bootstrap so the
+  // first live posterior is already informed by ~3h of recent prices.
+  classifier.warmup(bootstrap);
+  for (let i = 1; i < bootstrap.length; i++) {
+    const prev = bootstrap[i - 1].c;
+    const cur = bootstrap[i].c;
+    if (prev > 0 && cur > 0) ewmaVol.push(Math.log(cur / prev));
+  }
+  prevClose = bootstrap.at(-1)?.c ?? null;
 
   installShutdown(logger, async () => {
     await feed.close();

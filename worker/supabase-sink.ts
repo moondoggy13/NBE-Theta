@@ -14,6 +14,7 @@ import { serverClient } from "../src/lib/supabase/client";
 import type { RiskState } from "../src/lib/risk/kill-switch";
 import type { Fill, Order } from "../src/lib/broker/types";
 import type { EnsembleDecision, StrategySignal } from "../src/lib/signals/types";
+import type { RegimePosterior } from "../src/lib/regime/types";
 import type { Logger } from "./lib/logger";
 
 export interface SinkDeps {
@@ -180,6 +181,25 @@ export class SupabaseSink {
       })
       .eq("id", 1);
     if (error) this.deps.logger.error({ err: error.message }, "risk_state persist failed");
+  }
+
+  /**
+   * Phase-1: persist HMM filtered posterior for the dashboard regime gauge.
+   * Fire-and-forget; failure is logged but never blocks the tick loop.
+   */
+  async persistRegimePosterior(post: RegimePosterior, realizedVol: number): Promise<void> {
+    if (!this.client) return;
+    const { error } = await this.client.from("regime_posteriors").insert({
+      ts: new Date(post.ts).toISOString(),
+      symbol: "BTC-USD",
+      p_bull: post.probs.bull,
+      p_range: post.probs.range,
+      p_bear: post.probs.bear,
+      dominant_state: post.dominant,
+      realized_vol: realizedVol,
+      log_return: null,
+    });
+    if (error) this.deps.logger.error({ err: error.message }, "regime posterior insert failed");
   }
 
   /** Worker can engage the kill switch when lifetime/daily limits trip. */

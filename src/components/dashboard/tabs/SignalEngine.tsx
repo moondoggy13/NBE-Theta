@@ -3,6 +3,7 @@
 import { ChevronRight, Zap } from "lucide-react";
 import { useState } from "react";
 import { GlassPanel } from "../GlassPanel";
+import { RegimeGauge } from "../RegimeGauge";
 import { ScoreSparkline } from "../ScoreSparkline";
 import { StrategyDetailModal } from "../StrategyDetailModal";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -35,6 +36,10 @@ export function SignalEngineTab() {
 
   return (
     <div className="flex flex-col gap-6 h-full">
+      <GlassPanel title="Regime Posterior" className="bg-white/50">
+        <RegimeGauge />
+      </GlassPanel>
+
       <GlassPanel
         title="Neural Engine Core"
         className="flex-1 relative overflow-hidden bg-[#050505] border-slate-800 min-h-[360px]"
