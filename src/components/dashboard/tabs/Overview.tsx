@@ -61,37 +61,39 @@ export function OverviewTab() {
     (s) => Date.now() - new Date(s.ts).getTime() < 60_000,
   ).length;
 
-  // Daily P&L approx: latest equity − earliest equity in our 30-snapshot window
-  const equityNow = latest?.equity ?? 25_000;
-  const earliest = pnl[pnl.length - 1]?.equity ?? equityNow;
-  const dayPnl = equityNow - earliest;
-  const dayPnlPct = earliest > 0 ? (dayPnl / earliest) * 100 : 0;
+  // P&L since launch: anchor at the lifetime baseline ($25k). Avoids the
+  // misleading "+113% since the wipe pivot" effect that would happen if we
+  // anchored at the first snapshot in our rolling window.
+  const LAUNCH_EQUITY = 25_000;
+  const equityNow = latest?.equity ?? LAUNCH_EQUITY;
+  const sinceLaunchPnl = equityNow - LAUNCH_EQUITY;
+  const sinceLaunchPct = LAUNCH_EQUITY > 0 ? (sinceLaunchPnl / LAUNCH_EQUITY) * 100 : 0;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
       {/* Left column: stats + active vector */}
       <div className="lg:col-span-3 flex flex-col gap-6">
-        <GlassPanel title="Net P&L" className="bg-white/50">
+        <GlassPanel title="Equity" className="bg-white/50">
           <div
             className={`text-4xl font-light tracking-tighter mt-2 ${
-              dayPnl >= 0 ? "text-emerald-600" : "text-rose-600"
+              sinceLaunchPnl >= 0 ? "text-emerald-600" : "text-rose-600"
             }`}
           >
             {formatCurrency(equityNow)}
           </div>
-          <div className="flex items-center gap-2 mt-4 text-xs font-medium">
+          <div className="flex items-center gap-2 mt-4 text-xs font-medium flex-wrap">
             <span
               className={`flex items-center gap-1 px-2 py-1 rounded-full border ${
-                dayPnl >= 0
+                sinceLaunchPnl >= 0
                   ? "text-emerald-500 bg-emerald-50 border-emerald-100"
                   : "text-rose-500 bg-rose-50 border-rose-100"
               }`}
             >
               <TrendingUp size={12} />
-              {dayPnl >= 0 ? "+" : ""}{formatCurrency(dayPnl)} session
+              {sinceLaunchPnl >= 0 ? "+" : ""}{formatCurrency(sinceLaunchPnl)} since launch
             </span>
             <span className="text-slate-500 font-mono text-[10px]">
-              {dayPnlPct >= 0 ? "+" : ""}{dayPnlPct.toFixed(2)}%
+              {sinceLaunchPct >= 0 ? "+" : ""}{sinceLaunchPct.toFixed(2)}% from {formatCurrency(LAUNCH_EQUITY)}
             </span>
           </div>
         </GlassPanel>
@@ -165,7 +167,7 @@ export function OverviewTab() {
 
       {/* Center column: equity chart */}
       <GlassPanel
-        className="lg:col-span-6 relative flex flex-col bg-slate-900/5 border-slate-800/10 min-h-[480px]"
+        className="lg:col-span-6 relative flex flex-col bg-slate-900/5 border-slate-800/10 min-h-[600px]"
         withCorners
       >
         <CornerTicks />
@@ -173,7 +175,7 @@ export function OverviewTab() {
           Equity Curve
         </div>
         <div className="flex-1 mt-12 mb-4 px-4">
-          <EquityChart height={300} referenceEquity={25000} />
+          <EquityChart height={420} referenceEquity={LAUNCH_EQUITY} />
         </div>
         <div className="absolute bottom-6 left-0 right-0 flex justify-around">
           <Stat label="confidence" value={ensembleLatest ? `${(ensembleLatest.confidence * 100).toFixed(0)}%` : "—"} />
