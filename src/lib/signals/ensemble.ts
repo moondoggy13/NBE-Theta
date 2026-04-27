@@ -10,11 +10,14 @@ export interface EnsembleOptions {
   shortThreshold?: number; // sum must be below -this for a short decision
 }
 
-// Defaults raised after observing whip-sawing on minute candles. With two
-// strategies that often disagree, a 0.25 threshold lets noise repeatedly
-// cross the line — every flip costs ~10 bps in round-trip fees and after
-// hundreds of flips you bleed to zero. 0.4 demands clearer agreement.
-const DEFAULTS = { longThreshold: 0.4, shortThreshold: 0.4 };
+// Live calibration after observing real BTC microstructure: the prior 0.25
+// caused 318 round-trips in 53h (fee bleed bug). 0.4 was too high — the
+// ensemble peaked at ~0.34 even when mean-rev-bb showed strong setups
+// (score 0.83+) because momentum-ema diluted toward neutral. 0.3 lets
+// genuine setups through while requireConsecutive (2) + cooldownMs (5min)
+// in the ExecutionManager block the noise-flipping that originally caused
+// the bleed.
+const DEFAULTS = { longThreshold: 0.3, shortThreshold: 0.3 };
 
 /**
  * Combines per-strategy signals into a single decision.
