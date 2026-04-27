@@ -114,6 +114,33 @@ export class SupabaseSink {
     if (error) this.deps.logger.error({ err: error.message }, "fill insert failed");
   }
 
+  /**
+   * Mirror the broker's truth into the `positions` table so the dashboard
+   * sees what the broker actually holds. Upsert by symbol; delete on flat.
+   * v3 fix: previously the table was always empty even though MockBroker
+   * had a non-zero internal qty, which masked the runaway-long bug.
+   */
+  async persistPositions(positions: Array<{ symbol: string; qty: number; avgEntry: number; unrealizedPnl: number; realizedPnl: number }>): Promise<void> {
+    if (!this.client) return;
+    if (positions.length === 0) {
+      // Nobody holds anything — clear the table.
+      const { error } = await this.client.from("positions").delete().neq("symbol", "__none__");
+      if (error) this.deps.logger.error({ err: error.message }, "positions clear failed");
+      return;
+    }
+    const rows = positions.map((p) => ({
+      symbol: p.symbol,
+      qty: p.qty,
+      avg_entry: p.avgEntry,
+      unrealized_pnl: p.unrealizedPnl,
+      realized_pnl: p.realizedPnl,
+      opened_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await this.client.from("positions").upsert(rows, { onConflict: "symbol" });
+    if (error) this.deps.logger.error({ err: error.message }, "positions upsert failed");
+  }
+
   recordPnl(equity: number, realized: number, unrealized: number, drawdownPct: number): void {
     if (!this.client) return;
     this.batch.pnl.push({

@@ -71,6 +71,11 @@ async function main() {
     setRiskState: (patch) => {
       riskState = { ...riskState, ...patch };
     },
+    onKillSwitchTrip: async (reason) => {
+      if (killSwitchEngagedHere) return;
+      killSwitchEngagedHere = true;
+      await sink.engageKillSwitch(reason);
+    },
   });
 
   broker.onFill(async (fill, order) => {
@@ -133,15 +138,24 @@ async function main() {
             : 0;
         sink.recordPnl(acct.equity, realized, unreal, dd);
 
-        // Persist daily risk fields so the dashboard reflects reality.
-        await sink.persistDailyRisk({
-          dailyLossDollars: riskState.dailyLossDollars,
-          dailyStartEquity: riskState.dayStartEquity,
-          dayAnchorUtc: riskState.dayAnchorUtc,
-        });
+        // Persist daily risk and broker-truth positions so the dashboard
+        // reflects reality (the v2 dashboard always showed empty positions
+        // because the worker never wrote to the table — that hid the
+        // runaway-long bug for 2 hours).
+        await Promise.all([
+          sink.persistDailyRisk({
+            dailyLossDollars: riskState.dailyLossDollars,
+            dailyStartEquity: riskState.dayStartEquity,
+            dayAnchorUtc: riskState.dayAnchorUtc,
+          }),
+          sink.persistPositions(positions),
+        ]);
 
-        // If we just crossed the lifetime gate, persist kill switch so the
-        // dashboard surfaces it and the worker stays halted across restarts.
+        // Reconcile ExecutionManager's internal state against broker truth.
+        // Catches phantom positions if anything ever slips past the mutex.
+        await execution.reconcile();
+
+        // Lifetime/daily gate trip → engage kill switch + auto-flatten.
         const block = shouldBlock(cfg, riskState, acct.equity);
         if (
           !killSwitchEngagedHere &&
@@ -149,11 +163,12 @@ async function main() {
           (block.reason === "lifetime_stop_hit" || block.reason === "daily_stop_hit")
         ) {
           killSwitchEngagedHere = true;
-          await sink.engageKillSwitch(`${block.reason} at equity ${acct.equity.toFixed(2)}`);
           logger.error(
             { reason: block.reason, equity: acct.equity, peak: riskState.peakEquity },
-            "engaging kill switch",
+            "engaging kill switch + flattening",
           );
+          await execution.flattenAndHalt(block.reason ?? "unknown");
+          await sink.engageKillSwitch(`${block.reason} at equity ${acct.equity.toFixed(2)}`);
         }
       } catch (err) {
         logger.warn({ err: (err as Error).message }, "pnl snapshot failed");

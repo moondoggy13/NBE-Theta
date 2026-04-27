@@ -27,19 +27,30 @@ describe("resolveRiskConfig", () => {
 });
 
 describe("positionSize", () => {
-  it("uses risk/unit to size a position", () => {
+  it("uses risk/unit when notional cap is high enough", () => {
     const cfg = PRESETS.Aggressive;
-    const qty = positionSize(cfg, { equity: 25_000, entry: 50_000, stop: 49_500 });
+    // equity=$25k, entry=$50k, stop=$49.5k (stop dist $500). Risk-based qty
+    // = $500 / $500 = 1 BTC. Notional cap at 5x = $125k / $50k = 2.5 BTC.
+    // 1 BTC < 2.5 BTC, so risk-based wins.
+    const qty = positionSize(cfg, { equity: 25_000, entry: 50_000, stop: 49_500, maxLeverage: 5 });
     expect(qty).toBeCloseTo(1, 5);
+  });
+  it("notional cap (1x default) overrides risk-based when sizing exceeds equity", () => {
+    // Risk-based math: $500/$500 = 1 BTC. Notional cap 1x = $25k/$50k = 0.5 BTC.
+    // Cap wins, qty = 0.5 BTC. Stops the runaway-leverage problem.
+    const qty = positionSize(PRESETS.Aggressive, { equity: 25_000, entry: 50_000, stop: 49_500 });
+    expect(qty).toBeCloseTo(0.5, 5);
   });
   it("returns 0 when stop equals entry", () => {
     expect(positionSize(PRESETS.Aggressive, { equity: 25_000, entry: 50_000, stop: 50_000 })).toBe(0);
   });
-  it("rounds down to qtyIncrement", () => {
+  it("notional cap respects qtyIncrement", () => {
+    // entry=$100, stop=$99 (dist $1). Risk = $500/$1 = 500 units. Notional
+    // cap (1x) = $25k/$100 = 250 units. Cap wins → 250.
     const qty = positionSize(PRESETS.Aggressive, {
       equity: 25_000, entry: 100, stop: 99, qtyIncrement: 1e-3,
     });
-    expect(qty).toBe(500);
+    expect(qty).toBe(250);
   });
 });
 
