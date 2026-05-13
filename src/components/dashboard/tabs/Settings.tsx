@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { GlassPanel } from "../GlassPanel";
 import { useRealtime } from "@/hooks/use-realtime";
 
@@ -8,9 +9,17 @@ interface RiskStateRow {
   kill_switch_active: boolean;
   autonomous_execution: boolean;
   preset: string;
+  execution_provider?: ExecutionProvider;
 }
 
+type ExecutionProvider = "coinbase" | "computer-use" | "mock";
+
 const PRESETS = ["Conservative", "Moderate", "Aggressive"] as const;
+const PROVIDERS: { value: ExecutionProvider; label: string; subtitle: string }[] = [
+  { value: "coinbase", label: "Coinbase API", subtitle: "Direct REST. Crypto only." },
+  { value: "computer-use", label: "Computer-Use (Webull)", subtitle: "Local agent drives Webull desktop. Stocks + crypto." },
+  { value: "mock", label: "Mock / paper", subtitle: "In-process fills. No real money." },
+];
 
 export function SettingsTab() {
   const { rows: risk } = useRealtime<RiskStateRow>({
@@ -33,8 +42,17 @@ export function SettingsTab() {
       body: JSON.stringify({ autonomous_execution: next }),
     });
   }
+  async function setProvider(provider: ExecutionProvider) {
+    await fetch("/api/kill-switch", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ execution_provider: provider }),
+    });
+  }
 
   const liveEnv = process.env.NEXT_PUBLIC_COINBASE_LIVE === "true";
+  const provider: ExecutionProvider = r?.execution_provider ?? "coinbase";
+  const hostHealth = useAgentHostHealth(provider === "computer-use");
 
   return (
     <GlassPanel title="System Configuration" className="h-full bg-white/40" withCorners>
@@ -68,6 +86,46 @@ export function SettingsTab() {
           </div>
         </div>
 
+        <div className="p-5 border border-white/60 rounded-2xl bg-white/50 shadow-sm">
+          <div className="font-bold text-slate-800 mb-3">Execution Venue</div>
+          <div className="grid grid-cols-1 gap-2">
+            {PROVIDERS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setProvider(p.value)}
+                className={`text-left px-4 py-3 rounded-xl border transition ${
+                  provider === p.value
+                    ? "bg-fuchsia-500 text-white border-fuchsia-400"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                <div className="text-sm font-mono font-bold">{p.label}</div>
+                <div className={`text-xs font-mono mt-1 ${provider === p.value ? "text-white/80" : "text-slate-500"}`}>
+                  {p.subtitle}
+                </div>
+              </button>
+            ))}
+          </div>
+          {provider === "computer-use" && (
+            <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs font-mono text-amber-900">
+              <div className="font-bold uppercase tracking-widest text-[10px] mb-1">Heads up</div>
+              The agent will move your mouse and click on the Webull desktop window.
+              Keep the trading PC unattended only if dry-run is off, the notional
+              cap is set, and you trust the kill switch.
+              <div className="mt-2">
+                Agent-host:{" "}
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] uppercase ${
+                    hostHealth.ok ? "bg-emerald-100 text-emerald-700 border border-emerald-300" : "bg-rose-100 text-rose-700 border border-rose-300"
+                  }`}
+                >
+                  {hostHealth.ok ? `online · ${hostHealth.driver ?? "?"} · ${hostHealth.dryRun ? "dry-run" : "LIVE"}` : "offline"}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="p-5 border border-white/60 rounded-2xl bg-white/50 shadow-sm opacity-90">
           <div className="flex items-center justify-between">
             <div>
@@ -89,6 +147,37 @@ export function SettingsTab() {
       </div>
     </GlassPanel>
   );
+}
+
+interface HostHealth {
+  ok: boolean;
+  driver?: string;
+  dryRun?: boolean;
+}
+
+function useAgentHostHealth(enabled: boolean): HostHealth {
+  const [health, setHealth] = useState<HostHealth>({ ok: false });
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const r = await fetch("/api/agent-host/health", { cache: "no-store" });
+        const j = (await r.json()) as HostHealth;
+        if (!cancelled) setHealth(j);
+      } catch {
+        if (!cancelled) setHealth({ ok: false });
+      }
+    }
+    poll();
+    const id = setInterval(poll, 5_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      setHealth({ ok: false });
+    };
+  }, [enabled]);
+  return health;
 }
 
 function Toggle({

@@ -40,6 +40,25 @@ const Env = z.object({
   COINBASE_API_PRIVATE_KEY: z.string().optional(),
   FLATTEN_ON_EXIT: z.enum(["true", "false"]).default("false"),
 
+  // Execution provider routing. "coinbase" preserves the original Coinbase
+  // Advanced Trade path (gated by COINBASE_MODE/COINBASE_LIVE/CONFIRM_LIVE).
+  // "computer-use" routes orders to a local agent-host that drives the
+  // Webull desktop app via Claude or OpenAI computer-use.
+  // "mock" forces the in-process mock broker regardless of other flags.
+  EXECUTION_PROVIDER: z.enum(["coinbase", "computer-use", "mock"]).default("coinbase"),
+
+  // Computer-use provider config. The host runs on the trading workstation
+  // and is the ONLY process with OS-level input access. The worker speaks
+  // to it over HTTP+WS; credentials never live in this repo.
+  COMPUTER_USE_HOST_URL: z.string().url().optional(),
+  COMPUTER_USE_HOST_TOKEN: z.string().optional(),
+  COMPUTER_USE_DRIVER: z.enum(["claude", "openai"]).default("claude"),
+  COMPUTER_USE_LIVE: z.enum(["true", "false"]).default("false"),
+  COMPUTER_USE_REQUIRE_CONFIRM: z.enum(["true", "false"]).default("true"),
+  COMPUTER_USE_DRY_RUN: z.enum(["true", "false"]).default("true"),
+  COMPUTER_USE_MAX_NOTIONAL_USD: z.coerce.number().default(50),
+  WEBULL_ACCOUNT_LABEL: z.string().optional(),
+
   RISK_PRESET: z.enum(["Conservative", "Moderate", "Aggressive", "Custom"]).default("Aggressive"),
   RISK_START_EQUITY: z.coerce.number().optional(),
   RISK_PER_TRADE_PCT: z.coerce.number().optional(),
@@ -60,4 +79,18 @@ export function loadEnv(): AppEnv {
 /** Both gates must agree for live orders to be allowed. */
 export function isLiveEnabled(env: AppEnv = loadEnv()): boolean {
   return env.COINBASE_MODE === "live" && env.COINBASE_LIVE === "true" && env.CONFIRM_LIVE === "YES";
+}
+
+/**
+ * Three gates for computer-use live trading. Defense in depth matching the
+ * Coinbase two-gate pattern — computer-use adds a third gate because the
+ * failure modes (window-not-focused, OCR misread, model hallucinating a
+ * click) are stranger and less reversible than an API error.
+ */
+export function isComputerUseLiveEnabled(env: AppEnv = loadEnv()): boolean {
+  return (
+    env.EXECUTION_PROVIDER === "computer-use" &&
+    env.COMPUTER_USE_LIVE === "true" &&
+    env.CONFIRM_LIVE === "YES"
+  );
 }

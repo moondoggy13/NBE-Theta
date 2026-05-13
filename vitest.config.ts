@@ -9,10 +9,14 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.{test,spec}.ts", "worker/**/*.{test,spec}.ts"],
+    include: [
+      "src/**/*.{test,spec}.ts",
+      "worker/**/*.{test,spec}.ts",
+      "agent-host/**/*.{test,spec}.ts",
+    ],
     coverage: {
       provider: "v8",
-      include: ["src/lib/**", "worker/**"],
+      include: ["src/lib/**", "worker/**", "agent-host/**"],
       exclude: ["**/*.d.ts", "**/__tests__/**"],
     },
   },

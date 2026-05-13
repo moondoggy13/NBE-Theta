@@ -24,12 +24,13 @@
 import type { BrokerClient, Fill, Order, PositionView } from "../src/lib/broker/types";
 import { MockBrokerClient } from "../src/lib/broker/mock";
 import { CoinbaseAdvancedClient } from "../src/lib/broker/coinbase-advanced";
+import { ComputerUseBrokerClient } from "../src/lib/broker/computer-use";
 import type { RiskPreset } from "../src/lib/risk/config";
 import { maybeRollDay, shouldBlock, type RiskState } from "../src/lib/risk/kill-switch";
 import { positionSize } from "../src/lib/risk/sizer";
 import type { EnsembleDecision, Side } from "../src/lib/signals/types";
 import type { Logger } from "./lib/logger";
-import { isLiveEnabled, type AppEnv } from "./lib/env";
+import { isComputerUseLiveEnabled, isLiveEnabled, type AppEnv } from "./lib/env";
 
 export interface ExecutionConfig {
   cooldownMs: number;
@@ -83,8 +84,18 @@ export class ExecutionManager {
   constructor(private readonly deps: ExecutionDeps) {
     this.execCfg = { ...EXECUTION_DEFAULTS, ...(deps.execCfg ?? {}) };
     this.deps.broker.onFill((fill, order) => this.onFill(fill, order));
-    if (deps.broker.mode === "live" && !isLiveEnabled(deps.env)) {
-      throw new Error("Live broker instantiated without COINBASE_LIVE=true && CONFIRM_LIVE=YES");
+    // Defense in depth: even if buildBroker is bypassed, refuse to run a
+    // live broker without the matching gate set for its provider.
+    if (deps.broker.mode === "live") {
+      const liveOk =
+        deps.env.EXECUTION_PROVIDER === "computer-use"
+          ? isComputerUseLiveEnabled(deps.env)
+          : isLiveEnabled(deps.env);
+      if (!liveOk) {
+        throw new Error(
+          `Live broker (${deps.broker.name}) instantiated without matching live gates for EXECUTION_PROVIDER=${deps.env.EXECUTION_PROVIDER}`,
+        );
+      }
     }
   }
 
@@ -334,6 +345,37 @@ export class ExecutionManager {
 }
 
 export function buildBroker(env: AppEnv, cfg: RiskPreset): BrokerClient {
+  // Provider routing. "mock" is an explicit override for tests/dev that
+  // forces the in-process mock regardless of any *_LIVE flags.
+  if (env.EXECUTION_PROVIDER === "mock") {
+    return new MockBrokerClient({
+      startEquity: cfg.startEquity,
+      maxLeverage: 1.0,
+    });
+  }
+
+  if (env.EXECUTION_PROVIDER === "computer-use") {
+    if (!isComputerUseLiveEnabled(env)) {
+      throw new Error(
+        "Computer-use execution requested but gates not set (need COMPUTER_USE_LIVE=true && CONFIRM_LIVE=YES)",
+      );
+    }
+    if (!env.COMPUTER_USE_HOST_URL || !env.COMPUTER_USE_HOST_TOKEN) {
+      throw new Error(
+        "Computer-use execution requires COMPUTER_USE_HOST_URL and COMPUTER_USE_HOST_TOKEN",
+      );
+    }
+    return new ComputerUseBrokerClient({
+      hostUrl: env.COMPUTER_USE_HOST_URL,
+      hostToken: env.COMPUTER_USE_HOST_TOKEN,
+      symbol: env.SYMBOL,
+      liveEnabled: true,
+      dryRun: env.COMPUTER_USE_DRY_RUN === "true",
+      maxNotionalUsd: env.COMPUTER_USE_MAX_NOTIONAL_USD,
+    });
+  }
+
+  // Default: coinbase path (paper → mock, live → CoinbaseAdvancedClient).
   if (env.COINBASE_MODE === "paper") {
     return new MockBrokerClient({
       startEquity: cfg.startEquity,

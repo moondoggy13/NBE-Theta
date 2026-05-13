@@ -5,6 +5,7 @@ interface Patch {
   active?: boolean;
   autonomous_execution?: boolean;
   preset?: "Conservative" | "Moderate" | "Aggressive" | "Custom";
+  execution_provider?: "coinbase" | "computer-use" | "mock";
 }
 
 export async function GET() {
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
   if (typeof body.active === "boolean") patch.kill_switch_active = body.active;
   if (typeof body.autonomous_execution === "boolean") patch.autonomous_execution = body.autonomous_execution;
   if (body.preset) patch.preset = body.preset;
+  if (body.execution_provider) patch.execution_provider = body.execution_provider;
 
   const { data, error } = await sb.from("risk_state").update(patch).eq("id", 1).select().single();
   if (error) return NextResponse.json({ ok: false, reason: error.message }, { status: 500 });
