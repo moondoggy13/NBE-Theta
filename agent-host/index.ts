@@ -28,7 +28,8 @@ import { createOpenAIDriver } from "./drivers/openai";
 import type { CUADriver, FillReport } from "./drivers/types";
 import { createStubRunner, type SkillRunner } from "./webull/skills";
 import { verifyFill } from "./webull/verifier";
-import { autoConfirm, stdinConfirm, type ConfirmFn } from "./safety/two-person";
+import { stdinConfirm, type ConfirmFn } from "./safety/two-person";
+import { DashboardClient } from "./dashboard";
 
 const HostEnv = z.object({
   HOST_PORT: z.coerce.number().default(7331),
@@ -43,18 +44,47 @@ const HostEnv = z.object({
   WEBULL_PLATFORM: z.enum(["stub", "macos", "windows"]).default("stub"),
   STEP_TIMEOUT_MS: z.coerce.number().default(15_000),
   TOTAL_TIMEOUT_MS: z.coerce.number().default(120_000),
+  /** Dashboard origin for config polling + action log. Optional — when
+   *  unset the host runs purely off env. */
+  DASHBOARD_URL: z.string().url().optional(),
 });
 
 const log = pino({ name: "agent-host", level: process.env.LOG_LEVEL ?? "info" });
 
 async function main() {
   const env = HostEnv.parse(process.env);
-  const dryRun = env.DRY_RUN === "true";
-  const requireConfirm = env.REQUIRE_CONFIRM === "true";
-
   const runner: SkillRunner = await buildRunner(env.WEBULL_PLATFORM);
-  const driver: CUADriver = buildDriver(env, runner);
-  const confirmFn: ConfirmFn = requireConfirm ? stdinConfirm() : autoConfirm;
+
+  // Live config (dashboard-driven). Falls back to env defaults if no
+  // dashboard is configured or the dashboard is unreachable.
+  const dashboard = env.DASHBOARD_URL
+    ? new DashboardClient({ url: env.DASHBOARD_URL, token: env.HOST_TOKEN, log })
+    : undefined;
+  let liveDriverName: "claude" | "openai" = env.DRIVER;
+  let driver: CUADriver = buildDriver(env, runner);
+  let dryRun = env.DRY_RUN === "true";
+  let requireConfirm = env.REQUIRE_CONFIRM === "true";
+  let maxNotional = env.MAX_NOTIONAL_USD;
+  let killSwitch = false;
+  let cuEnabled = true;
+
+  if (dashboard) {
+    dashboard.onConfigChange((c) => {
+      dryRun = c.dryRun;
+      requireConfirm = c.requireConfirm;
+      maxNotional = c.maxNotionalUsd;
+      killSwitch = c.killSwitch;
+      cuEnabled = c.enabled;
+      if (c.driver !== liveDriverName) {
+        liveDriverName = c.driver;
+        driver = buildDriver({ ...env, DRIVER: c.driver }, runner);
+        log.info({ driver: c.driver }, "driver swapped from dashboard config");
+      }
+    });
+    dashboard.start();
+  }
+
+  const confirmFn: ConfirmFn = stdinConfirm();
 
   const queue = new PQueue({ concurrency: 1 });
   const tasks = new Map<
@@ -79,6 +109,8 @@ async function main() {
     driver: driver.name,
     dryRun,
     platform: env.WEBULL_PLATFORM,
+    killSwitch,
+    enabled: cuEnabled,
   }));
 
   app.post("/orders", async (req, reply) => {
@@ -88,6 +120,13 @@ async function main() {
       return { ok: false, reason: parsed.error.message } satisfies SubmitOrderResponse;
     }
     const order = parsed.data;
+    if (killSwitch || !cuEnabled) {
+      reply.code(409);
+      return {
+        ok: false,
+        reason: killSwitch ? "kill switch active" : "computer-use disabled by dashboard",
+      } satisfies SubmitOrderResponse;
+    }
     if (tasks.has(order.clientOrderId)) {
       const t = tasks.get(order.clientOrderId)!;
       return { ok: true, taskId: t.hostTaskId, status: "submitted" } satisfies SubmitOrderResponse;
@@ -106,13 +145,27 @@ async function main() {
         });
         const report = await driver.runOrder(order, {
           dryRun: order.dryRun ?? dryRun,
-          maxNotionalUsd: env.MAX_NOTIONAL_USD,
+          maxNotionalUsd: maxNotional,
           requireConfirm: requireConfirm ? () => confirmFn(order) : undefined,
           stepTimeoutMs: env.STEP_TIMEOUT_MS,
           totalTimeoutMs: env.TOTAL_TIMEOUT_MS,
         });
         log.info({ clientOrderId: order.clientOrderId, report }, "driver returned");
         tasks.set(order.clientOrderId, { status: "done", report, hostTaskId });
+
+        // Mirror each driver action to the dashboard for the live feed.
+        if (dashboard) {
+          for (const act of report.actions) {
+            void dashboard.logAction({
+              taskId: hostTaskId,
+              clientOrderId: order.clientOrderId,
+              skill: act.skill,
+              args: act.args,
+              reasoning: act.reasoning,
+              screenshotUrl: act.screenshot,
+            });
+          }
+        }
 
         if (report.reason?.startsWith("submitted") && !order.dryRun) {
           const fill = await verifyFill(order, hostTaskId, { runner });
