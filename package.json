@@ -11,6 +11,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "contracts:generate": "pnpm --filter @nbe-theta/contracts generate",
+    "contracts:check": "pnpm --filter @nbe-theta/contracts check",
     "test:watch": "vitest",
     "backtest": "tsx scripts/backtest.ts",
     "paper": "cross-env COINBASE_MODE=paper tsx worker/index.ts",

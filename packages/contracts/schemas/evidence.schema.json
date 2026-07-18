@@ -1,0 +1,44 @@
+{
+  "$id": "https://nbe-theta.local/schemas/evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One item in a signal's evidence chain.\n\n``kind`` is the evidence family (e.g. \"wallet_trade\", \"cluster_agree\",\n\"news_headline\"); ``ref`` is a stable identifier the dashboard can\ndereference (wallet address + tx hash, article URL, etc.). ``weight``\nis the signal's own attribution \u2014 how much this evidence contributes\nto the confidence score.",
+  "properties": {
+    "detail": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Detail",
+      "type": "object"
+    },
+    "kind": {
+      "minLength": 1,
+      "title": "Kind",
+      "type": "string"
+    },
+    "ref": {
+      "minLength": 1,
+      "title": "Ref",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "weight": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Weight",
+      "type": "number"
+    }
+  },
+  "required": [
+    "kind",
+    "ref",
+    "weight"
+  ],
+  "title": "Evidence",
+  "type": "object"
+}

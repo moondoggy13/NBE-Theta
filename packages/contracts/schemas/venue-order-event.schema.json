@@ -1,0 +1,59 @@
+{
+  "$id": "https://nbe-theta.local/schemas/venue-order-event.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One row in the append-only ``venue_order_events`` table.\n\nNever rewrite an order row to erase history \u2014 write a new event and\nproject the current-state read model off events.",
+  "properties": {
+    "event_type": {
+      "enum": [
+        "submitted",
+        "acknowledged",
+        "partial_fill",
+        "fill",
+        "cancel_requested",
+        "canceled",
+        "rejected",
+        "expired"
+      ],
+      "title": "Event Type",
+      "type": "string"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "payload": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Free-form event payload; keys/values are strings for wire stability.",
+      "title": "Payload",
+      "type": "object"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "venue_order_id": {
+      "minLength": 1,
+      "title": "Venue Order Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "venue_order_id",
+    "event_type",
+    "occurred_at"
+  ],
+  "title": "VenueOrderEvent",
+  "type": "object"
+}

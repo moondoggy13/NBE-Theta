@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "venue": "polymarket",
+  "venue_market_id": "0xmarket123",
+  "venue_event_id": "0xevent456",
+  "condition_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+  "question": "Will X happen by 2026-12-31?",
+  "neg_risk": false,
+  "active": true,
+  "closed": false,
+  "resolved": false,
+  "opened_at": "2026-06-01T00:00:00Z",
+  "closes_at": "2026-12-31T23:59:59Z",
+  "resolved_at": null,
+  "resolution_source": "official press release",
+  "current_rule_version_id": null,
+  "outcomes": [
+    {
+      "schema_version": "1.0.0",
+      "venue": "polymarket",
+      "venue_market_id": "0xmarket123",
+      "outcome_index": 0,
+      "outcome_name": "Yes",
+      "outcome_token_id": "1"
+    },
+    {
+      "schema_version": "1.0.0",
+      "venue": "polymarket",
+      "venue_market_id": "0xmarket123",
+      "outcome_index": 1,
+      "outcome_name": "No",
+      "outcome_token_id": "2"
+    }
+  ]
+}

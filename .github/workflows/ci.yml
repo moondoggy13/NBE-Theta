@@ -10,6 +10,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  contracts:
+    name: Contracts (schema + TS regen check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install JS deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python deps
+        working-directory: packages/contracts
+        run: |
+          uv venv --python 3.11 .venv
+          uv pip install --python .venv/bin/python -e ".[dev]"
+
+      - name: Regenerate schemas + TS
+        working-directory: packages/contracts
+        run: |
+          .venv/bin/python -m nbe_theta_contracts.export schemas ./schemas
+          node scripts/generate-ts.mjs
+
+      - name: Diff-check
+        run: git diff --exit-code -- packages/contracts/schemas packages/contracts/generated
+
+      - name: Python contracts tests
+        working-directory: packages/contracts
+        run: .venv/bin/python -m pytest tests/python
+
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest
@@ -32,8 +78,12 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Typecheck
+      - name: Typecheck (root)
         run: pnpm typecheck
+
+      - name: Typecheck (@nbe-theta/contracts)
+        working-directory: packages/contracts
+        run: npx tsc --noEmit
 
       - name: Test
         run: pnpm test
@@ -44,13 +94,14 @@ jobs:
       # PR that either fixes that subdir or excludes it from the build.
 
   python:
-    name: Python
+    name: Python (scaffold)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # No Python code lands until PR 1 (packages/contracts) / PR 3
-    # (python/nbe_theta/ingest). Until then this job is a scaffold that
-    # only asserts uv is installable so the workflow shape is stable.
-    if: hashFiles('python/**/pyproject.toml') != ''
+    # The `python/nbe_theta` package lands in PR 3. Until then only the
+    # contracts package has Python code, and that's covered by the
+    # `contracts` job. This job stays here as a skeleton so PR 3 can
+    # populate it without touching the workflow shape.
+    if: hashFiles('python/nbe_theta/**/*.py') != ''
     steps:
       - uses: actions/checkout@v4
 

@@ -32,6 +32,7 @@
   ],
   "exclude": [
     "node_modules",
-    "ONCHAIN_THETA_AGENT"
+    "ONCHAIN_THETA_AGENT",
+    "packages"
   ]
 }
