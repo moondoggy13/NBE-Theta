@@ -1,0 +1,95 @@
+# Local development stack for the Polymarket rebuild.
+#
+# Runs three future services (web, executor, python-worker) against a
+# single Postgres. No Redis (per plan; add later only when measured need
+# justifies it). No live network access to Polymarket — the executor
+# service intentionally has no signer credentials in this compose file
+# and the venue adapter refuses to instantiate without the three-flag
+# gate.
+#
+# Boot:
+#   docker compose up -d db
+#   pnpm install && pnpm dev          # web on :4200
+#   # once python/ lands (PR 1+): docker compose up python-worker
+#   # once apps/executor lands (PR 8): docker compose up executor
+#
+# The web + executor + python-worker service definitions are scaffolds.
+# They intentionally don't run anything yet — their build contexts and
+# entrypoints will be filled in by the PRs that create their code.
+
+services:
+  db:
+    image: postgres:16
+    container_name: nbe_theta_db
+    restart: unless-stopped
+    ports:
+      - "54322:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-nbe_theta}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Web (Next.js dashboard + control API).
+  # Scaffold only — during development, run `pnpm dev` on the host and
+  # point at db:54322. This service exists so the compose topology is
+  # complete for later container-based deployment.
+  web:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4200:4200"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/nbe_theta
+      CONTROL_API_TOKEN: ${CONTROL_API_TOKEN}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+
+  # Python worker (registry, ingest, ledger, scoring, signal generator).
+  # Scaffold only — image will be built once python/nbe_theta lands.
+  python-worker:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["uv", "run", "theta-registry", "--loop"]
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/nbe_theta
+      LOG_LEVEL: info
+
+  # TypeScript executor (holds the signer; talks to Polymarket).
+  # Scaffold only. In production this container runs on a private host,
+  # never behind a public inbound endpoint.
+  executor:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/executor/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/nbe_theta
+      EXECUTION_PROVIDER: mock
+      # The three live-CLOB flags are intentionally UNSET here.
+      # Setting them requires deliberate operator action.
+      # POLYMARKET_LIVE=false
+      # CONFIRM_LIVE=NO
+
+volumes:
+  db_data: {}

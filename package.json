@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start -p 4200",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "backtest": "tsx scripts/backtest.ts",

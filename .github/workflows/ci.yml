@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main, rebuild/polymarket-v2]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # Build is temporarily excluded from CI because `main` has a
+      # pre-existing typecheck failure in `ONCHAIN_THETA_AGENT/` (missing
+      # `@coinbase/agentkit` dep). It will be reintroduced in a follow-up
+      # PR that either fixes that subdir or excludes it from the build.
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # No Python code lands until PR 1 (packages/contracts) / PR 3
+    # (python/nbe_theta/ingest). Until then this job is a scaffold that
+    # only asserts uv is installable so the workflow shape is stable.
+    if: hashFiles('python/**/pyproject.toml') != ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: uv sync
+        working-directory: python
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        working-directory: python
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        working-directory: python
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        working-directory: python
+        run: uv run mypy nbe_theta
+
+      - name: Pytest
+        working-directory: python
+        run: uv run pytest
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks needs full history to scan every commit on a PR
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
