@@ -133,6 +133,52 @@ jobs:
         working-directory: python
         run: uv run pytest
 
+  database:
+    name: Database (migrations + smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # supabase/postgres provides pgvector + the supabase_realtime
+    # publication + the anon/authenticated/service_role roles that
+    # migrations 001-010 depend on.
+    services:
+      db:
+        image: supabase/postgres:15.8.1.060
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nbe_theta
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nbe_theta
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      # Invoke the runner script directly so this job needs no node/pnpm
+      # toolchain. `pnpm migrate up` is the identical local-dev alias.
+      - name: Apply migrations from zero
+        run: bash scripts/migrate.sh up
+
+      - name: Re-apply is a no-op (idempotent ledger)
+        run: |
+          out="$(bash scripts/migrate.sh up)"
+          echo "$out"
+          echo "$out" | grep -q "applied 0 migration" || {
+            echo "second migrate up should apply 0 migrations" >&2
+            exit 1
+          }
+
+      - name: Schema smoke assertions
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/db-smoke.sql
+
   security:
     name: Security
     runs-on: ubuntu-latest

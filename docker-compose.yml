@@ -19,7 +19,12 @@
 
 services:
   db:
-    image: postgres:16
+    # supabase/postgres (not stock postgres:16) because migrations
+    # 001-004 and the new RLS/publication statements require pgvector,
+    # the `supabase_realtime` publication, and the anon/authenticated/
+    # service_role roles — all shipped by this image, none by stock
+    # postgres. Pinned; bump deliberately.
+    image: supabase/postgres:15.8.1.060
     container_name: nbe_theta_db
     restart: unless-stopped
     ports:
@@ -30,7 +35,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-nbe_theta}
     volumes:
       - db_data:/var/lib/postgresql/data
-      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+      # Migrations are applied explicitly via `pnpm migrate up`, NOT via
+      # the initdb.d auto-run — migration 003 has non-idempotent
+      # publication adds that would error on a double-apply, so a single
+      # authoritative runner is used for both local dev and CI.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
