@@ -37,24 +37,20 @@ jobs:
       - name: Install JS deps
         run: pnpm install --frozen-lockfile
 
-      - name: Install Python deps
-        working-directory: packages/contracts
-        run: |
-          uv venv --python 3.11 .venv
-          uv pip install --python .venv/bin/python -e ".[dev]"
-
-      - name: Regenerate schemas + TS
-        working-directory: packages/contracts
-        run: |
-          .venv/bin/python -m nbe_theta_contracts.export schemas ./schemas
-          node scripts/generate-ts.mjs
-
-      - name: Diff-check
-        run: git diff --exit-code -- packages/contracts/schemas packages/contracts/generated
+      # `pnpm contracts:check` self-bootstraps the Python env via
+      # `uv run --frozen` (uv.lock is committed), regenerates schemas +
+      # TS, and diffs against the checked-in tree.
+      - name: Regenerate + diff-check
+        run: pnpm contracts:check
 
       - name: Python contracts tests
         working-directory: packages/contracts
-        run: .venv/bin/python -m pytest tests/python
+        run: uv run --frozen --extra dev pytest tests/python
+
+      # The package's own filtered test entrypoint must work (it is the
+      # README-documented command); guards the package vitest config.
+      - name: TS contracts tests (package-filtered)
+        run: pnpm --filter @nbe-theta/contracts test
 
   typescript:
     name: TypeScript
@@ -101,35 +97,50 @@ jobs:
     # contracts package has Python code, and that's covered by the
     # `contracts` job. This job stays here as a skeleton so PR 3 can
     # populate it without touching the workflow shape.
-    if: hashFiles('python/nbe_theta/**/*.py') != ''
+    #
+    # NOTE: the gate is a STEP (not a job-level `if`) because hashFiles()
+    # is only available in step-level expression contexts — a job-level
+    # hashFiles() makes GitHub reject the whole workflow file, silently
+    # killing every job in it.
     steps:
       - uses: actions/checkout@v4
 
+      - id: gate
+        name: Check python/nbe_theta exists
+        run: echo "present=$([ -d python/nbe_theta ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
       - uses: astral-sh/setup-uv@v3
+        if: steps.gate.outputs.present == 'true'
         with:
           enable-cache: true
 
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.present == 'true'
         with:
           python-version: "3.12"
 
       - name: uv sync
+        if: steps.gate.outputs.present == 'true'
         working-directory: python
         run: uv sync --frozen
 
       - name: Ruff lint
+        if: steps.gate.outputs.present == 'true'
         working-directory: python
         run: uv run ruff check .
 
       - name: Ruff format check
+        if: steps.gate.outputs.present == 'true'
         working-directory: python
         run: uv run ruff format --check .
 
       - name: Mypy
+        if: steps.gate.outputs.present == 'true'
         working-directory: python
         run: uv run mypy nbe_theta
 
       - name: Pytest
+        if: steps.gate.outputs.present == 'true'
         working-directory: python
         run: uv run pytest
 
@@ -159,8 +170,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install psql client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      # ubuntu-latest ships psql preinstalled; only install if a future
+      # runner image drops it. Saves ~30s of apt-get per run.
+      - name: Ensure psql client
+        run: command -v psql >/dev/null || (sudo apt-get update && sudo apt-get install -y postgresql-client)
 
       # Invoke the runner script directly so this job needs no node/pnpm
       # toolchain. `pnpm migrate up` is the identical local-dev alias.

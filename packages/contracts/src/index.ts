@@ -15,5 +15,14 @@ export {
   type ValidationSuccess,
 } from "./validators.js";
 
-/** Package-wide schema version. Consumers reject on mismatch. */
-export const SCHEMA_VERSION = "1.0.0";
+import schemaIndex from "../schemas/index.json" with { type: "json" };
+
+/**
+ * Package-wide schema version. Consumers reject on mismatch.
+ *
+ * Sourced from the generated schemas/index.json (written by the Python
+ * export CLI from _version.py) — NOT hand-duplicated — so the constant
+ * cannot silently diverge between languages. The registry test pins
+ * this against every schema's schema_version pattern.
+ */
+export const SCHEMA_VERSION: string = schemaIndex.schema_version;

@@ -14,11 +14,12 @@
     "./schemas/*": "./schemas/*"
   },
   "scripts": {
-    "generate:schemas": ".venv/bin/python -m nbe_theta_contracts.export schemas ./schemas",
+    "generate:schemas": "uv run --frozen python -m nbe_theta_contracts.export schemas ./schemas",
     "generate:ts": "node scripts/generate-ts.mjs",
     "generate": "pnpm generate:schemas && pnpm generate:ts",
     "check": "pnpm generate && git diff --exit-code -- schemas generated",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:py": "uv run --frozen --extra dev pytest tests/python"
   },
   "dependencies": {
     "ajv": "^8.17.1",

@@ -14,10 +14,18 @@ Design choices:
 """
 
 import re
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, WithJsonSchema
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    WithJsonSchema,
+)
 
 from nbe_theta_contracts._version import SCHEMA_VERSION
 
@@ -149,6 +157,25 @@ NonNegativeDecimalStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_N
 UnitPriceStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_UNIT_PRICE_PATTERN)]
 """Wire-safe Decimal in (0, 1] — prediction-market outcome prices.
 Pair with Field(gt=0, le=1)."""
+
+# ── Time ──────────────────────────────────────────────────────────
+
+
+def _canonical_utc(v: datetime) -> str:
+    """UTC ISO-8601 with a Z suffix — the wire form the fixtures use."""
+
+    return v.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+UtcDatetime = Annotated[AwareDatetime, PlainSerializer(_canonical_utc, return_type=str)]
+"""Timezone-AWARE datetime, serialized as UTC ISO-8601 with a Z suffix.
+
+Use for every timestamp field. A plain ``datetime`` annotation accepts
+naive input and serializes it with no offset — which the Ajv side then
+rejects (``format: date-time`` requires an offset), so a Python producer
+could emit payloads the TS consumer refuses. ``AwareDatetime`` closes
+that asymmetry at the producer boundary.
+"""
 
 # ── Base ──────────────────────────────────────────────────────────
 

@@ -164,3 +164,27 @@ def test_schema_version_mismatch_rejected_python() -> None:
     with pytest.raises(ValidationError) as excinfo:
         OrderIntent.model_validate({**base, "schema_version": "9.9.9"})
     assert "schema_version" in str(excinfo.value)
+
+
+def test_naive_datetime_rejected() -> None:
+    """A naive timestamp would serialize with no offset, which the Ajv
+    consumer rejects — so the Python producer must refuse it up front."""
+
+    base = _load("order_intent.valid.json")
+    with pytest.raises(ValidationError) as excinfo:
+        OrderIntent.model_validate({**base, "expires_at": "2026-07-18T05:30:00"})
+    assert "expires_at" in str(excinfo.value)
+
+
+def test_utc_datetime_roundtrips_with_z_suffix() -> None:
+    """Aware datetimes serialize as UTC ISO-8601 with Z — matching the
+    fixture wire form byte-for-byte, and offsets are normalized to UTC."""
+
+    base = _load("order_intent.valid.json")
+    dumped = json.loads(OrderIntent.model_validate(base).model_dump_json(by_alias=True))
+    assert dumped["expires_at"] == base["expires_at"] == "2026-07-18T05:30:00Z"
+
+    # A +02:00 producer timestamp lands on the wire normalized to UTC/Z.
+    offset_input = {**base, "expires_at": "2026-07-18T07:30:00+02:00"}
+    dumped2 = json.loads(OrderIntent.model_validate(offset_input).model_dump_json(by_alias=True))
+    assert dumped2["expires_at"] == "2026-07-18T05:30:00Z"

@@ -23,6 +23,7 @@ from typing import Any
 import typer
 from pydantic import BaseModel
 
+from nbe_theta_contracts._version import SCHEMA_VERSION
 from nbe_theta_contracts import (
     Event,
     Evidence,
@@ -119,9 +120,12 @@ def schemas(
         target.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n")
         written.append(target.name)
 
-    # An index file mapping model name → $id + filename.
+    # An index file mapping model name → $id + filename. Also carries
+    # the canonical schema_version — the TS package re-exports it from
+    # here, so the constant can never silently diverge across languages.
     index = {
         "generated_by": "nbe_theta_contracts.export",
+        "schema_version": SCHEMA_VERSION,
         "schemas": [
             {
                 "name": model.__name__,
@@ -134,6 +138,14 @@ def schemas(
     }
     (out_dir / "index.json").write_text(json.dumps(index, indent=2) + "\n")
     written.append("index.json")
+
+    # Prune zombies: a model renamed or dropped from EXPORTED_MODELS
+    # must not leave its old schema behind (generate-ts.mjs would keep
+    # generating TS for it forever). Mirrors the rm -rf the TS side does.
+    for stale in out_dir.glob("*.schema.json"):
+        if stale.name not in written:
+            stale.unlink()
+            typer.echo(f"Pruned stale {stale.name}")
 
     typer.echo(f"Wrote {len(written)} files to {out_dir}")
 

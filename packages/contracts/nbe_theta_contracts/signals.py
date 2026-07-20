@@ -7,7 +7,7 @@ The signal's role is to declare the trade thesis, freshness deadline,
 and evidence lineage; the executor decides how much to actually risk.
 """
 
-from datetime import datetime
+
 from decimal import Decimal
 from uuid import UUID
 
@@ -19,6 +19,7 @@ from nbe_theta_contracts.common import (
     PositiveDecimalStr,
     Side,
     UnitPriceStr,
+    UtcDatetime,
 )
 from nbe_theta_contracts.markets import OutcomeInstrument
 
@@ -57,8 +58,8 @@ class SignalEnvelope(ContractBase):
     direction: Side
     maximum_price: UnitPriceStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
     maximum_loss_usd: PositiveDecimalStr = Field(..., gt=Decimal("0"))
-    expires_at: datetime
+    expires_at: UtcDatetime
     confidence: float = Field(..., ge=0, le=1)
     evidence: list[Evidence] = Field(default_factory=list)
     model_version: str = Field(..., min_length=1)
-    created_at: datetime
+    created_at: UtcDatetime

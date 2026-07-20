@@ -13,7 +13,7 @@ Money handling:
   regex (see ``packages/contracts/src/validators.ts``).
 """
 
-from datetime import datetime
+
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -29,6 +29,7 @@ from nbe_theta_contracts.common import (
     Side,
     TimeInForce,
     UnitPriceStr,
+    UtcDatetime,
     Venue,
 )
 from nbe_theta_contracts.markets import OutcomeInstrument
@@ -54,11 +55,11 @@ class OrderIntent(ContractBase):
     quantity: PositiveDecimalStr = Field(..., gt=Decimal("0"))
     limit_price: UnitPriceStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
     time_in_force: TimeInForce
-    expiration: datetime | None = None
+    expiration: UtcDatetime | None = None
     post_only: bool = False
     strategy_type: IntentStrategyType
     signal_id: UUID
-    expires_at: datetime
+    expires_at: UtcDatetime
 
 
 class ExecutionReport(ContractBase):
@@ -72,7 +73,7 @@ class ExecutionReport(ContractBase):
     intent_id: UUID
     venue_order_id: str | None = None
     status: OrderStatus
-    submitted_at: datetime
+    submitted_at: UtcDatetime
     reason: str | None = Field(
         default=None,
         description="Rejection reason from the venue or the executor's risk gate.",
@@ -94,8 +95,8 @@ class VenueOrder(ContractBase):
     status: OrderStatus
     filled_quantity: NonNegativeDecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
     fees_paid: NonNegativeDecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
 
 
 class VenueOrderEvent(ContractBase):
@@ -117,7 +118,7 @@ class VenueOrderEvent(ContractBase):
         "rejected",
         "expired",
     ]
-    occurred_at: datetime
+    occurred_at: UtcDatetime
     payload: dict[str, str] = Field(
         default_factory=dict,
         description="Free-form event payload; keys/values are strings for wire stability.",
@@ -129,7 +130,7 @@ class VenueFill(ContractBase):
 
     venue_order_id: str = Field(..., min_length=1)
     venue_fill_id: str = Field(..., min_length=1)
-    occurred_at: datetime
+    occurred_at: UtcDatetime
     price: UnitPriceStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
     quantity: PositiveDecimalStr = Field(..., gt=Decimal("0"))
     fee: NonNegativeDecimalStr = Field(..., ge=Decimal("0"))

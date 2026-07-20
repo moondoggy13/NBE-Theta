@@ -38,7 +38,12 @@ applied_versions() {
 
 list_files() {
   # NNN_*.sql sorted lexicographically (zero-padded numbers sort correctly).
-  find "$MIG_DIR" -maxdepth 1 -name '[0-9]*_*.sql' -printf '%f\n' | sort
+  # Pure-shell glob, not `find -printf` — that flag is GNU-only and this
+  # script must also run on macOS/BSD dev machines.
+  local f
+  for f in "$MIG_DIR"/[0-9]*_*.sql; do
+    [[ -e "$f" ]] && printf '%s\n' "${f##*/}"
+  done | sort
 }
 
 cmd_status() {
@@ -70,9 +75,13 @@ cmd_up() {
       continue
     fi
     echo "→ applying $f"
-    # -1 wraps the file in a single transaction; ON_ERROR_STOP aborts on error.
-    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -1 -f "$MIG_DIR/$f"
-    psql_do -c "insert into schema_migrations (version) values ('$v');" >/dev/null
+    # -1 wraps EVERYTHING (-f then -c, executed in order) in one
+    # transaction: the migration and its ledger insert commit atomically.
+    # A crash or connection drop can no longer leave a migration applied
+    # but unrecorded (which would wedge the next run on re-apply).
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -1 \
+      -f "$MIG_DIR/$f" \
+      -c "insert into schema_migrations (version) values ('$v');"
     n=$((n + 1))
   done < <(list_files)
   echo "migrate up: applied $n migration(s)"

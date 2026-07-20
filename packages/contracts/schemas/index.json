@@ -1,5 +1,6 @@
 {
   "generated_by": "nbe_theta_contracts.export",
+  "schema_version": "1.0.0",
   "schemas": [
     {
       "name": "Event",

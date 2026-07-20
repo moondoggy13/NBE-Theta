@@ -6,7 +6,7 @@ per row and lets producers safely retry an insert without duplicating
 the intent (e.g. after a network glitch).
 """
 
-from datetime import datetime
+
 from uuid import UUID
 
 from pydantic import Field
@@ -15,6 +15,7 @@ from nbe_theta_contracts.common import (
     ContractBase,
     ExecutionIntentStatus,
     IntentStrategyType,
+    UtcDatetime,
 )
 from nbe_theta_contracts.orders import OrderIntent
 
@@ -33,11 +34,11 @@ class ExecutionIntentRow(ContractBase):
     dedupe_key: str = Field(..., min_length=1)
     payload: OrderIntent
     status: ExecutionIntentStatus
-    available_at: datetime
-    expires_at: datetime
+    available_at: UtcDatetime
+    expires_at: UtcDatetime
     attempt_count: int = Field(default=0, ge=0)
-    claimed_at: datetime | None = None
+    claimed_at: UtcDatetime | None = None
     claimed_by: str | None = None
     last_error: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
