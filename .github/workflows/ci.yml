@@ -5,6 +5,11 @@ on:
     branches: [main, rebuild/polymarket-v2]
   pull_request:
 
+# Least-privilege GITHUB_TOKEN for every job (CodeQL: actions/missing-
+# workflow-permissions). Jobs that need more declare it themselves.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -151,22 +156,29 @@ jobs:
     # supabase/postgres provides pgvector + the supabase_realtime
     # publication + the anon/authenticated/service_role roles that
     # migrations 001-010 depend on.
+    #
+    # Do NOT override POSTGRES_USER/POSTGRES_DB on this image: its
+    # bundled init scripts bootstrap as `supabase_admin` (the image's
+    # baked-in POSTGRES_USER). Overriding the user makes initdb create
+    # a different superuser and the image's own migrate step dies with
+    # 'Role "supabase_admin" does not exist' before the container ever
+    # goes healthy. We connect as supabase_admin — the actual superuser
+    # and owner of the supabase_realtime publication — to the default
+    # `postgres` database.
     services:
       db:
         image: supabase/postgres:15.8.1.060
         env:
-          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: nbe_theta
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres"
+          --health-cmd "pg_isready -U supabase_admin -h localhost"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 30
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/nbe_theta
+      DATABASE_URL: postgres://supabase_admin:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
 
@@ -196,6 +208,10 @@ jobs:
     name: Security
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      # gitleaks-action annotates PRs when it finds leaks.
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:

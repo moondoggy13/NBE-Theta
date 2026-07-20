@@ -30,9 +30,13 @@ services:
     ports:
       - "54322:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # Do NOT set POSTGRES_USER or POSTGRES_DB on this image. Its
+      # bundled init scripts bootstrap as `supabase_admin` (the baked-in
+      # default user); overriding the user breaks the image's own init
+      # ('Role "supabase_admin" does not exist') and the container never
+      # comes up healthy. Connect as supabase_admin to db `postgres` —
+      # see DATABASE_URL in .env.example.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-nbe_theta}
     volumes:
       - db_data:/var/lib/postgresql/data
       # Migrations are applied explicitly via `pnpm migrate up`, NOT via
@@ -40,7 +44,7 @@ services:
       # publication adds that would error on a double-apply, so a single
       # authoritative runner is used for both local dev and CI.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U supabase_admin -h localhost"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -60,7 +64,7 @@ services:
     ports:
       - "4200:4200"
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/nbe_theta
+      DATABASE_URL: postgres://supabase_admin:postgres@db:5432/postgres
       CONTROL_API_TOKEN: ${CONTROL_API_TOKEN}
       NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
@@ -77,7 +81,7 @@ services:
         condition: service_healthy
     command: ["uv", "run", "theta-registry", "--loop"]
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/nbe_theta
+      DATABASE_URL: postgres://supabase_admin:postgres@db:5432/postgres
       LOG_LEVEL: info
 
   # TypeScript executor (holds the signer; talks to Polymarket).
@@ -92,7 +96,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/nbe_theta
+      DATABASE_URL: postgres://supabase_admin:postgres@db:5432/postgres
       EXECUTION_PROVIDER: mock
       # The three live-CLOB flags are intentionally UNSET here.
       # Setting them requires deliberate operator action.
