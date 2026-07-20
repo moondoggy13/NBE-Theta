@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from nbe_theta_contracts.common import ContractBase, DecimalStr, Venue
+from nbe_theta_contracts.common import ContractBase, DecimalStr, NonNegativeDecimalStr, Venue
 
 
 class VenuePosition(ContractBase):
@@ -24,7 +24,7 @@ class VenuePosition(ContractBase):
     condition_id: str = Field(..., min_length=1)
     outcome_token_id: str = Field(..., min_length=1)
     shares: DecimalStr
-    cost_basis: DecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
+    cost_basis: NonNegativeDecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
 
 
 class VenueAccountState(ContractBase):
@@ -36,7 +36,7 @@ class VenueAccountState(ContractBase):
 
     venue: Venue
     account_id: str = Field(..., min_length=1)
-    collateral_balance: DecimalStr = Field(..., ge=Decimal("0"))
+    collateral_balance: NonNegativeDecimalStr = Field(..., ge=Decimal("0"))
     open_intent_count: int = Field(..., ge=0)
     open_order_count: int = Field(..., ge=0)
     connectivity: Literal["ok", "degraded", "down"] = "ok"

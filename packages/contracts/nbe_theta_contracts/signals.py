@@ -13,7 +13,13 @@ from uuid import UUID
 
 from pydantic import Field
 
-from nbe_theta_contracts.common import ContractBase, DecimalStr, IntentStrategyType, Side
+from nbe_theta_contracts.common import (
+    ContractBase,
+    IntentStrategyType,
+    PositiveDecimalStr,
+    Side,
+    UnitPriceStr,
+)
 from nbe_theta_contracts.markets import OutcomeInstrument
 
 
@@ -49,8 +55,8 @@ class SignalEnvelope(ContractBase):
     strategy_type: IntentStrategyType
     market: OutcomeInstrument
     direction: Side
-    maximum_price: DecimalStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
-    maximum_loss_usd: DecimalStr = Field(..., gt=Decimal("0"))
+    maximum_price: UnitPriceStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
+    maximum_loss_usd: PositiveDecimalStr = Field(..., gt=Decimal("0"))
     expires_at: datetime
     confidence: float = Field(..., ge=0, le=1)
     evidence: list[Evidence] = Field(default_factory=list)

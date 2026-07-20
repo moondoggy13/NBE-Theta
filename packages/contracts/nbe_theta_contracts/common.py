@@ -13,6 +13,7 @@ Design choices:
   ``ContractBase`` — so consumers can reject on mismatch.
 """
 
+import re
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -83,31 +84,71 @@ IntentStrategyType = Literal[
 # ── Money ─────────────────────────────────────────────────────────
 
 # On the Python side, money is a ``Decimal`` — safe arithmetic, no
-# float drift. On the wire, it's a JSON *string* matching the regex
-# below. Ajv on the TS side validates the same regex.
+# float drift. On the wire, it's a JSON *string* matching one of the
+# regexes below. Ajv on the TS side validates the same regexes.
 #
-# The pattern accepts an optional leading minus, at least one digit,
-# and an optional decimal part with at least one digit. It intentionally
-# rejects trailing periods (``"1."``) and empty fractional parts
-# (``".5"``) — those are ambiguous and produce round-trip drift.
-_DECIMAL_PATTERN = r"^-?\d+(\.\d+)?$"
+# IMPORTANT — why FOUR types instead of one: ``WithJsonSchema`` REPLACES
+# the field's entire emitted JSON Schema, so per-field constraints like
+# ``Field(gt=0, le=1)`` never reach the generated schemas. JSON Schema
+# cannot numerically compare strings, so the only way the TS consumer
+# can enforce bounds is to encode them in the regex itself. Each type
+# below pairs a bound-encoding pattern (wire/consumer enforcement) with
+# the Field(gt/le/ge) constraints kept on the models (Python producer
+# enforcement). BOTH layers must stay in sync — if you change a bound
+# on a model field, change the annotated type too.
+#
+# All patterns intentionally reject trailing periods (``"1."``), empty
+# fractional parts (``".5"``), and non-canonical zero-padded forms
+# (``"01"``, ``"00.5"``) — the canonical serializer below never emits
+# them, and the consumer fails closed on hand-crafted payloads.
 
-DecimalStr = Annotated[
-    Decimal,
-    PlainSerializer(lambda v: format(v, "f"), return_type=str),
-    WithJsonSchema(
-        {
-            "type": "string",
-            "format": "decimal",
-            "pattern": _DECIMAL_PATTERN,
-        }
-    ),
-]
-"""Wire-safe Decimal.
 
-Serializes to a fixed-point string; validates against the shared regex.
-Use this everywhere a monetary or share quantity crosses the wire.
-"""
+def _canonical_decimal(v: Decimal) -> str:
+    """Fixed-point serialization with negative-zero normalized.
+
+    ``Decimal("-0.0")`` passes a ``ge=0`` Pydantic check (it equals 0)
+    but ``format(..., "f")`` would emit ``"-0.0"``, which the unsigned
+    patterns reject. Normalize so producer output always passes the
+    consumer.
+    """
+
+    return format(abs(v) if v == 0 else v, "f")
+
+
+_DECIMAL_SERIALIZER = PlainSerializer(_canonical_decimal, return_type=str)
+
+# Signed decimal: optional minus, no bounds. Use ONLY where a value is
+# legitimately signed (e.g. VenuePosition.shares).
+_DECIMAL_PATTERN = r"^-?(0|[1-9]\d*)(\.\d+)?$"
+
+# > 0 (strictly positive; rejects all-zero values like "0", "0.0").
+_POSITIVE_PATTERN = r"^(?!0+(\.0+)?$)(0|[1-9]\d*)(\.\d+)?$"
+
+# >= 0 (unsigned; "0" and "0.0" are fine).
+_NON_NEGATIVE_PATTERN = r"^(0|[1-9]\d*)(\.\d+)?$"
+
+# (0, 1] — a probability-space price: "0.43", "1", "1.0" pass;
+# "0", "0.0", "1.5", "-0.4" fail. The closed upper bound is the
+# trickiest edge: 1 with only zero decimals is allowed.
+_UNIT_PRICE_PATTERN = r"^(?!0(\.0+)?$)(0(\.\d+)?|1(\.0+)?)$"
+
+
+def _decimal_type(pattern: str) -> object:
+    return WithJsonSchema({"type": "string", "format": "decimal", "pattern": pattern})
+
+
+DecimalStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_DECIMAL_PATTERN)]
+"""Wire-safe SIGNED Decimal. Only for legitimately signed quantities."""
+
+PositiveDecimalStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_POSITIVE_PATTERN)]
+"""Wire-safe Decimal > 0 (quantities, loss budgets). Pair with Field(gt=0)."""
+
+NonNegativeDecimalStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_NON_NEGATIVE_PATTERN)]
+"""Wire-safe Decimal >= 0 (fees, balances, fills). Pair with Field(ge=0)."""
+
+UnitPriceStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_UNIT_PRICE_PATTERN)]
+"""Wire-safe Decimal in (0, 1] — prediction-market outcome prices.
+Pair with Field(gt=0, le=1)."""
 
 # ── Base ──────────────────────────────────────────────────────────
 
@@ -132,7 +173,14 @@ class ContractBase(BaseModel):
         str_strip_whitespace=True,
     )
 
+    # The exact-match pattern is what makes "consumers reject on
+    # mismatch" TRUE rather than aspirational: Pydantic enforces it on
+    # the producer side, and it flows into the emitted JSON Schema so
+    # Ajv enforces it on the consumer side. A version bump in
+    # _version.py automatically retargets the pin everywhere on the
+    # next regeneration.
     schema_version: str = Field(
         default=SCHEMA_VERSION,
+        pattern=rf"^{re.escape(SCHEMA_VERSION)}$",
         description="Schema version of this payload; consumers reject on mismatch.",
     )

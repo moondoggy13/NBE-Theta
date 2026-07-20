@@ -41,7 +41,10 @@ VALID_CASES: list[tuple[str, type[BaseModel]]] = [
 INVALID_CASES: list[tuple[str, type[BaseModel], str]] = [
     # (filename, model, substring that must appear in the raised error)
     ("order_intent.invalid.missing_side.json", OrderIntent, "side"),
-    ("order_intent.invalid.price_out_of_range.json", OrderIntent, "limit_price"),
+    ("order_intent.invalid.price_not_a_number.json", OrderIntent, "limit_price"),
+    ("order_intent.invalid.price_above_one.json", OrderIntent, "limit_price"),
+    ("order_intent.invalid.negative_quantity.json", OrderIntent, "quantity"),
+    ("order_intent.invalid.wrong_schema_version.json", OrderIntent, "schema_version"),
     ("order_intent.invalid.extra_field.json", OrderIntent, "rogue_field"),
     (
         "signal_envelope.invalid.confidence_out_of_range.json",
@@ -96,3 +99,68 @@ def test_invalid_fixture_rejected(name: str, model: type[BaseModel], expected: s
     with pytest.raises(ValidationError) as excinfo:
         model.model_validate(raw)
     assert expected in str(excinfo.value)
+
+
+# ── Wire-pattern <-> Python-bound sync guarantees ──────────────────
+#
+# The bound-encoding regexes in common.py are the ONLY enforcement the
+# TS consumer has (JSON Schema can't numerically compare strings), so
+# these tests pin: (a) the boundary edges of the unit-price pattern,
+# and (b) that everything the Python serializer emits re-matches its
+# own schema pattern — i.e. producer output can never fail the consumer.
+
+import re
+
+from nbe_theta_contracts.common import (
+    _NON_NEGATIVE_PATTERN,
+    _POSITIVE_PATTERN,
+    _UNIT_PRICE_PATTERN,
+)
+
+
+@pytest.mark.parametrize("price", ["1", "1.0", "1.000", "0.43", "0.000001", "0.999999"])
+def test_unit_price_boundary_accepted(price: str) -> None:
+    base = _load("order_intent.valid.json")
+    intent = OrderIntent.model_validate({**base, "limit_price": price})
+    assert re.fullmatch(_UNIT_PRICE_PATTERN, price)
+    # Serialized form still matches the wire pattern.
+    dumped = json.loads(intent.model_dump_json(by_alias=True))
+    assert re.fullmatch(_UNIT_PRICE_PATTERN, dumped["limit_price"])
+
+
+@pytest.mark.parametrize("price", ["0", "0.0", "1.5", "1.75", "-0.4", "1.000001", "01", "1."])
+def test_unit_price_boundary_rejected(price: str) -> None:
+    # The wire pattern must reject each of these, and — for those that
+    # are numerically out of range — the Python model must agree.
+    assert not re.fullmatch(_UNIT_PRICE_PATTERN, price)
+
+
+def test_serialized_decimals_rematch_own_patterns() -> None:
+    """Producer output always passes the consumer's regex, including the
+    negative-zero normalization edge."""
+
+    from decimal import Decimal
+
+    from nbe_theta_contracts.common import _canonical_decimal
+
+    assert _canonical_decimal(Decimal("-0.0")) == "0.0"
+    assert _canonical_decimal(Decimal("10")) == "10"
+    assert _canonical_decimal(Decimal("0.43")) == "0.43"
+
+    base = _load("order_intent.valid.json")
+    dumped = json.loads(OrderIntent.model_validate(base).model_dump_json(by_alias=True))
+    assert re.fullmatch(_POSITIVE_PATTERN, dumped["quantity"])
+    assert re.fullmatch(_UNIT_PRICE_PATTERN, dumped["limit_price"])
+    assert re.fullmatch(_NON_NEGATIVE_PATTERN, "0")
+    assert re.fullmatch(_NON_NEGATIVE_PATTERN, "0.0")
+    assert not re.fullmatch(_NON_NEGATIVE_PATTERN, "-1")
+
+
+def test_schema_version_mismatch_rejected_python() -> None:
+    """The documented 'consumers reject on mismatch' is enforced, not
+    aspirational: Pydantic rejects a foreign version string."""
+
+    base = _load("order_intent.valid.json")
+    with pytest.raises(ValidationError) as excinfo:
+        OrderIntent.model_validate({**base, "schema_version": "9.9.9"})
+    assert "schema_version" in str(excinfo.value)

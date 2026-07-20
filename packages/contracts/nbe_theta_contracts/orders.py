@@ -22,11 +22,13 @@ from pydantic import Field
 
 from nbe_theta_contracts.common import (
     ContractBase,
-    DecimalStr,
     IntentStrategyType,
+    NonNegativeDecimalStr,
     OrderStatus,
+    PositiveDecimalStr,
     Side,
     TimeInForce,
+    UnitPriceStr,
     Venue,
 )
 from nbe_theta_contracts.markets import OutcomeInstrument
@@ -49,8 +51,8 @@ class OrderIntent(ContractBase):
     account_id: str = Field(..., min_length=1)
     instrument: OutcomeInstrument
     side: Side
-    quantity: DecimalStr = Field(..., gt=Decimal("0"))
-    limit_price: DecimalStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
+    quantity: PositiveDecimalStr = Field(..., gt=Decimal("0"))
+    limit_price: UnitPriceStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
     time_in_force: TimeInForce
     expiration: datetime | None = None
     post_only: bool = False
@@ -86,12 +88,12 @@ class VenueOrder(ContractBase):
     account_id: str = Field(..., min_length=1)
     instrument: OutcomeInstrument
     side: Side
-    quantity: DecimalStr = Field(..., gt=Decimal("0"))
-    limit_price: DecimalStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
+    quantity: PositiveDecimalStr = Field(..., gt=Decimal("0"))
+    limit_price: UnitPriceStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
     time_in_force: TimeInForce
     status: OrderStatus
-    filled_quantity: DecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
-    fees_paid: DecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
+    filled_quantity: NonNegativeDecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
+    fees_paid: NonNegativeDecimalStr = Field(default=Decimal("0"), ge=Decimal("0"))
     created_at: datetime
     updated_at: datetime
 
@@ -128,7 +130,7 @@ class VenueFill(ContractBase):
     venue_order_id: str = Field(..., min_length=1)
     venue_fill_id: str = Field(..., min_length=1)
     occurred_at: datetime
-    price: DecimalStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
-    quantity: DecimalStr = Field(..., gt=Decimal("0"))
-    fee: DecimalStr = Field(..., ge=Decimal("0"))
+    price: UnitPriceStr = Field(..., gt=Decimal("0"), le=Decimal("1"))
+    quantity: PositiveDecimalStr = Field(..., gt=Decimal("0"))
+    fee: NonNegativeDecimalStr = Field(..., ge=Decimal("0"))
     liquidity: Literal["maker", "taker"]

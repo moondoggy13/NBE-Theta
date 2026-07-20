@@ -17,6 +17,7 @@
     "schema_version": {
       "default": "1.0.0",
       "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
       "title": "Schema Version",
       "type": "string"
     },

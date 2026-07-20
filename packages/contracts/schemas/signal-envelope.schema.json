@@ -24,6 +24,7 @@
         "schema_version": {
           "default": "1.0.0",
           "description": "Schema version of this payload; consumers reject on mismatch.",
+          "pattern": "^1\\.0\\.0$",
           "title": "Schema Version",
           "type": "string"
         },
@@ -59,6 +60,7 @@
         "schema_version": {
           "default": "1.0.0",
           "description": "Schema version of this payload; consumers reject on mismatch.",
+          "pattern": "^1\\.0\\.0$",
           "title": "Schema Version",
           "type": "string"
         },
@@ -118,13 +120,13 @@
     },
     "maximum_loss_usd": {
       "format": "decimal",
-      "pattern": "^-?\\d+(\\.\\d+)?$",
+      "pattern": "^(?!0+(\\.0+)?$)(0|[1-9]\\d*)(\\.\\d+)?$",
       "title": "Maximum Loss Usd",
       "type": "string"
     },
     "maximum_price": {
       "format": "decimal",
-      "pattern": "^-?\\d+(\\.\\d+)?$",
+      "pattern": "^(?!0(\\.0+)?$)(0(\\.\\d+)?|1(\\.0+)?)$",
       "title": "Maximum Price",
       "type": "string"
     },
@@ -136,6 +138,7 @@
     "schema_version": {
       "default": "1.0.0",
       "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
       "title": "Schema Version",
       "type": "string"
     },
