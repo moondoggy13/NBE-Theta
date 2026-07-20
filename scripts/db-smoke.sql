@@ -87,8 +87,18 @@ begin
     if n > 0 then
       raise exception 'unexpected anon policy on deny-list table %', t;
     end if;
+    -- Privilege-level denial for EVERY deny table, not just the one the
+    -- behavioral probe reads. Catches the supabase/postgres default-
+    -- privileges auto-grant (tables created by supabase_admin are
+    -- auto-granted to anon/authenticated unless explicitly revoked).
+    if has_table_privilege('anon', 'public.' || t, 'SELECT') then
+      raise exception 'anon has SELECT privilege on deny-list table %', t;
+    end if;
+    if has_table_privilege('authenticated', 'public.' || t, 'SELECT') then
+      raise exception 'authenticated has SELECT privilege on deny-list table %', t;
+    end if;
   end loop;
-  raise notice 'ok: anon policies match intent';
+  raise notice 'ok: anon policies + privileges match intent';
 end $$;
 
 -- 4: realtime publication membership.

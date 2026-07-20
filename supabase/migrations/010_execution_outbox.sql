@@ -230,5 +230,10 @@ begin
   foreach t in array deny_tables loop
     execute format('alter table %I enable row level security', t);
     execute format('drop policy if exists "anon read %1$s" on %1$I', t);
+    -- Explicit privilege revoke, not just "no grant": supabase/postgres
+    -- sets ALTER DEFAULT PRIVILEGES so tables created by supabase_admin
+    -- are auto-granted to anon/authenticated. Without this revoke the
+    -- deny-list tables would be anon-readable on any Supabase deployment.
+    execute format('revoke all on %I from anon, authenticated', t);
   end loop;
 end $$;
