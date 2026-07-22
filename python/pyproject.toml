@@ -1,36 +1,55 @@
 [project]
-name = "nbe-theta-backtester"
+name = "nbe-theta"
 version = "0.1.0"
-description = "Offline backtesting + research sidecar for the NBE-Theta BTC quant stack"
+description = "NBE-Theta Python worker: Polymarket intelligence + signal layers (ingest, ledger, analytics, graph, signals, backtest)."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "numpy>=1.26",
-    "pandas>=2.2",
-    "pyarrow>=16.0",
-    "scipy>=1.12",
-    "numba>=0.59",
-    "joblib>=1.4",
     "httpx>=0.27",
+    "tenacity>=8.5",
+    "psycopg[binary]>=3.2",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "structlog>=24.1",
     "typer>=0.12",
-    "rich>=13.7",
-    "supabase>=2.5",
-    "matplotlib>=3.8",
-    "pyyaml>=6.0",
+    "nbe-theta-contracts",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5"]
+dev = [
+    "pytest>=8",
+    "mypy>=1.10",
+    "ruff>=0.5",
+]
 
 [project.scripts]
-backtest = "backtester.cli:app"
+theta-registry = "nbe_theta.ingest.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["backtester"]
+packages = ["nbe_theta"]
+
+# The contracts package is the durable-payload source of truth; the
+# ingest layer validates every row against it before writing. Resolved
+# as an editable path dep from the monorepo checkout.
+[tool.uv.sources]
+nbe-theta-contracts = { path = "../packages/contracts", editable = true }
 
 [tool.ruff]
 line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["nbe_theta"]
+
+[[tool.mypy.overrides]]
+module = ["structlog.*"]
+ignore_missing_imports = true

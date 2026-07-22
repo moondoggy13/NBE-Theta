@@ -1,20 +1,22 @@
 "use client";
 
-import { Activity, Briefcase, Settings, ShieldAlert, Zap } from "lucide-react";
+import { Activity, Briefcase, Globe, Settings, ShieldAlert, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BackgroundMesh } from "./BackgroundMesh";
 import { GlassPanel } from "./GlassPanel";
 import { PriceTicker } from "./PriceTicker";
 import { OverviewTab } from "./tabs/Overview";
+import { MarketsTab } from "./tabs/Markets";
 import { PositionsTab } from "./tabs/Positions";
 import { SignalEngineTab } from "./tabs/SignalEngine";
 import { RiskTab } from "./tabs/Risk";
 import { SettingsTab } from "./tabs/Settings";
 
-type TabId = "Overview" | "Positions" | "Signal Engine" | "Risk" | "Settings";
+type TabId = "Overview" | "Markets" | "Positions" | "Signal Engine" | "Risk" | "Settings";
 
 const TABS: Array<{ id: TabId; icon: React.ReactNode }> = [
   { id: "Overview",       icon: <Activity size={18} /> },
+  { id: "Markets",        icon: <Globe size={18} /> },
   { id: "Positions",      icon: <Briefcase size={18} /> },
   { id: "Signal Engine",  icon: <Zap size={18} /> },
   { id: "Risk",           icon: <ShieldAlert size={18} /> },
@@ -103,6 +105,7 @@ export function DeltaShell() {
 
           <div className="flex-1 overflow-y-auto pr-2 pb-2 custom-scrollbar">
             {active === "Overview"      && <OverviewTab />}
+            {active === "Markets"       && <MarketsTab />}
             {active === "Positions"     && <PositionsTab />}
             {active === "Signal Engine" && <SignalEngineTab />}
             {active === "Risk"          && <RiskTab />}
