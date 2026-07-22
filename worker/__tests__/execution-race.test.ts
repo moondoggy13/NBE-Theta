@@ -13,7 +13,7 @@ const fakeLogger = {
   trace: vi.fn(),
   fatal: vi.fn(),
   flush: vi.fn(),
-} as unknown as Parameters<ExecutionManager["constructor"]>[0]["logger"];
+} as unknown as ConstructorParameters<typeof ExecutionManager>[0]["logger"];
 
 const fakeEnv: AppEnv = {
   NODE_ENV: "test",

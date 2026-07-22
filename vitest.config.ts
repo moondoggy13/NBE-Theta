@@ -9,11 +9,15 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.{test,spec}.ts", "worker/**/*.{test,spec}.ts"],
+    include: [
+      "src/**/*.{test,spec}.ts",
+      "worker/**/*.{test,spec}.ts",
+      "packages/**/*.{test,spec}.ts",
+    ],
     coverage: {
       provider: "v8",
-      include: ["src/lib/**", "worker/**"],
-      exclude: ["**/*.d.ts", "**/__tests__/**"],
+      include: ["src/lib/**", "worker/**", "packages/**"],
+      exclude: ["**/*.d.ts", "**/__tests__/**", "**/generated/**"],
     },
   },
 });

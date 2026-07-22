@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0.0",
+  "intent_id": "5a1b1e5b-8b7f-4c1d-9f0c-1e2d3a4b5c6d",
+  "venue": "polymarket",
+  "account_id": "0xabc1230000000000000000000000000000000123",
+  "instrument": {
+    "schema_version": "1.0.0",
+    "venue": "polymarket",
+    "condition_id": "0x0000000000000000000000000000000000000000000000000000000000000001",
+    "outcome_token_id": "1"
+  },
+  "quantity": "10",
+  "limit_price": "0.43",
+  "time_in_force": "GTC",
+  "expiration": null,
+  "post_only": false,
+  "strategy_type": "wallet_follow",
+  "signal_id": "b5c1d0d2-6e6f-4a1b-9c3d-a1b2c3d4e5f6",
+  "expires_at": "2026-07-18T05:30:00Z"
+}

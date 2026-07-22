@@ -1,0 +1,7 @@
+# Local Python virtualenv only. `schemas/` and `generated/` MUST be
+# committed — CI diff-checks them.
+.venv/
+__pycache__/
+*.pyc
+node_modules/
+dist/

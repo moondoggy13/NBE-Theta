@@ -1,0 +1,155 @@
+{
+  "$defs": {
+    "OutcomeInstrument": {
+      "additionalProperties": false,
+      "description": "A tradable outcome token on a venue.\n\nUsed everywhere the executor / signal side needs to identify a\nspecific YES/NO share. ``condition_id`` selects the market;\n``outcome_token_id`` selects the side of it.",
+      "properties": {
+        "condition_id": {
+          "minLength": 1,
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "outcome_token_id": {
+          "minLength": 1,
+          "title": "Outcome Token Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "1.0.0",
+          "description": "Schema version of this payload; consumers reject on mismatch.",
+          "pattern": "^1\\.0\\.0$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "venue": {
+          "const": "polymarket",
+          "title": "Venue",
+          "type": "string"
+        }
+      },
+      "required": [
+        "venue",
+        "condition_id",
+        "outcome_token_id"
+      ],
+      "title": "OutcomeInstrument",
+      "type": "object"
+    }
+  },
+  "$id": "https://nbe-theta.local/schemas/order-intent.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The venue-neutral intent the executor consumes from the outbox.\n\nLimit orders are the wire primitive \u2014 there is no market order.\nAn immediate purchase is a marketable limit with an explicit\n``limit_price`` (the executor's max acceptable price).\n\n``expiration`` is only meaningful for ``time_in_force == \"GTD\"``;\nconsumers ignore it otherwise. ``expires_at`` is separate: it's the\nsignal-freshness deadline used by the pre-order risk check.",
+  "properties": {
+    "account_id": {
+      "minLength": 1,
+      "title": "Account Id",
+      "type": "string"
+    },
+    "expiration": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expiration"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "instrument": {
+      "$ref": "#/$defs/OutcomeInstrument"
+    },
+    "intent_id": {
+      "format": "uuid",
+      "title": "Intent Id",
+      "type": "string"
+    },
+    "limit_price": {
+      "format": "decimal",
+      "pattern": "^(?!0(\\.0+)?$)(0(\\.\\d+)?|1(\\.0+)?)$",
+      "title": "Limit Price",
+      "type": "string"
+    },
+    "post_only": {
+      "default": false,
+      "title": "Post Only",
+      "type": "boolean"
+    },
+    "quantity": {
+      "format": "decimal",
+      "pattern": "^(?!0+(\\.0+)?$)(0|[1-9]\\d*)(\\.\\d+)?$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "side": {
+      "enum": [
+        "BUY",
+        "SELL"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "signal_id": {
+      "format": "uuid",
+      "title": "Signal Id",
+      "type": "string"
+    },
+    "strategy_type": {
+      "enum": [
+        "wallet_follow",
+        "wallet_cluster_confirmation",
+        "fast_information_alert",
+        "news_probability",
+        "market_microstructure",
+        "future_cross_venue_arbitrage"
+      ],
+      "title": "Strategy Type",
+      "type": "string"
+    },
+    "time_in_force": {
+      "enum": [
+        "GTC",
+        "GTD",
+        "FOK",
+        "FAK"
+      ],
+      "title": "Time In Force",
+      "type": "string"
+    },
+    "venue": {
+      "const": "polymarket",
+      "title": "Venue",
+      "type": "string"
+    }
+  },
+  "required": [
+    "intent_id",
+    "venue",
+    "account_id",
+    "instrument",
+    "side",
+    "quantity",
+    "limit_price",
+    "time_in_force",
+    "strategy_type",
+    "signal_id",
+    "expires_at"
+  ],
+  "title": "OrderIntent",
+  "type": "object"
+}

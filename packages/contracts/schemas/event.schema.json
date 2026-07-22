@@ -1,0 +1,91 @@
+{
+  "$id": "https://nbe-theta.local/schemas/event.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A real-world event that groups related markets.",
+  "properties": {
+    "category": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Category"
+    },
+    "closes_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Closes At"
+    },
+    "opened_at": {
+      "format": "date-time",
+      "title": "Opened At",
+      "type": "string"
+    },
+    "raw_object_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Raw Object Id"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "active",
+        "closed",
+        "resolved"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "venue": {
+      "const": "polymarket",
+      "title": "Venue",
+      "type": "string"
+    },
+    "venue_event_id": {
+      "minLength": 1,
+      "title": "Venue Event Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "venue",
+    "venue_event_id",
+    "title",
+    "opened_at",
+    "status"
+  ],
+  "title": "Event",
+  "type": "object"
+}

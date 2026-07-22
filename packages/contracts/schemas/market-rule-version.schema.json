@@ -1,0 +1,105 @@
+{
+  "$id": "https://nbe-theta.local/schemas/market-rule-version.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "An observed version of a market's resolution rules.\n\nWe snapshot each observation with a ``rule_hash`` so a mid-market\nrule change becomes a new row rather than an in-place edit.",
+  "properties": {
+    "close_time": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Close Time"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "raw_object_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Raw Object Id"
+    },
+    "resolution_source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolution Source"
+    },
+    "rule_hash": {
+      "minLength": 1,
+      "title": "Rule Hash",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "venue": {
+      "const": "polymarket",
+      "title": "Venue",
+      "type": "string"
+    },
+    "venue_market_id": {
+      "minLength": 1,
+      "title": "Venue Market Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "venue",
+    "venue_market_id",
+    "observed_at",
+    "rule_hash",
+    "title"
+  ],
+  "title": "MarketRuleVersion",
+  "type": "object"
+}

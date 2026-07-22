@@ -1,0 +1,96 @@
+{
+  "generated_by": "nbe_theta_contracts.export",
+  "schema_version": "1.0.0",
+  "schemas": [
+    {
+      "name": "Event",
+      "slug": "event",
+      "id": "https://nbe-theta.local/schemas/event.schema.json",
+      "file": "event.schema.json"
+    },
+    {
+      "name": "Market",
+      "slug": "market",
+      "id": "https://nbe-theta.local/schemas/market.schema.json",
+      "file": "market.schema.json"
+    },
+    {
+      "name": "Outcome",
+      "slug": "outcome",
+      "id": "https://nbe-theta.local/schemas/outcome.schema.json",
+      "file": "outcome.schema.json"
+    },
+    {
+      "name": "MarketRuleVersion",
+      "slug": "market-rule-version",
+      "id": "https://nbe-theta.local/schemas/market-rule-version.schema.json",
+      "file": "market-rule-version.schema.json"
+    },
+    {
+      "name": "OutcomeInstrument",
+      "slug": "outcome-instrument",
+      "id": "https://nbe-theta.local/schemas/outcome-instrument.schema.json",
+      "file": "outcome-instrument.schema.json"
+    },
+    {
+      "name": "OrderIntent",
+      "slug": "order-intent",
+      "id": "https://nbe-theta.local/schemas/order-intent.schema.json",
+      "file": "order-intent.schema.json"
+    },
+    {
+      "name": "ExecutionReport",
+      "slug": "execution-report",
+      "id": "https://nbe-theta.local/schemas/execution-report.schema.json",
+      "file": "execution-report.schema.json"
+    },
+    {
+      "name": "VenueOrder",
+      "slug": "venue-order",
+      "id": "https://nbe-theta.local/schemas/venue-order.schema.json",
+      "file": "venue-order.schema.json"
+    },
+    {
+      "name": "VenueOrderEvent",
+      "slug": "venue-order-event",
+      "id": "https://nbe-theta.local/schemas/venue-order-event.schema.json",
+      "file": "venue-order-event.schema.json"
+    },
+    {
+      "name": "VenueFill",
+      "slug": "venue-fill",
+      "id": "https://nbe-theta.local/schemas/venue-fill.schema.json",
+      "file": "venue-fill.schema.json"
+    },
+    {
+      "name": "VenuePosition",
+      "slug": "venue-position",
+      "id": "https://nbe-theta.local/schemas/venue-position.schema.json",
+      "file": "venue-position.schema.json"
+    },
+    {
+      "name": "VenueAccountState",
+      "slug": "venue-account-state",
+      "id": "https://nbe-theta.local/schemas/venue-account-state.schema.json",
+      "file": "venue-account-state.schema.json"
+    },
+    {
+      "name": "Evidence",
+      "slug": "evidence",
+      "id": "https://nbe-theta.local/schemas/evidence.schema.json",
+      "file": "evidence.schema.json"
+    },
+    {
+      "name": "SignalEnvelope",
+      "slug": "signal-envelope",
+      "id": "https://nbe-theta.local/schemas/signal-envelope.schema.json",
+      "file": "signal-envelope.schema.json"
+    },
+    {
+      "name": "ExecutionIntentRow",
+      "slug": "execution-intent-row",
+      "id": "https://nbe-theta.local/schemas/execution-intent-row.schema.json",
+      "file": "execution-intent-row.schema.json"
+    }
+  ]
+}

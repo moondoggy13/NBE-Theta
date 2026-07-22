@@ -1,0 +1,73 @@
+{
+  "$id": "https://nbe-theta.local/schemas/execution-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Immediate response to a submitIntent call.\n\n``venue_order_id`` is present if the venue accepted the order and\nreturned an id. ``status`` is the current known state \u2014 ``live`` /\n``rejected`` / ``partially_filled`` / etc.",
+  "properties": {
+    "intent_id": {
+      "format": "uuid",
+      "title": "Intent Id",
+      "type": "string"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Rejection reason from the venue or the executor's risk gate.",
+      "title": "Reason"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "signed",
+        "submitted",
+        "live",
+        "partially_filled",
+        "cancel_pending",
+        "canceled",
+        "filled",
+        "rejected",
+        "expired"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "submitted_at": {
+      "format": "date-time",
+      "title": "Submitted At",
+      "type": "string"
+    },
+    "venue_order_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Venue Order Id"
+    }
+  },
+  "required": [
+    "intent_id",
+    "status",
+    "submitted_at"
+  ],
+  "title": "ExecutionReport",
+  "type": "object"
+}

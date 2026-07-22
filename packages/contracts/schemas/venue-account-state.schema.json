@@ -1,0 +1,60 @@
+{
+  "$id": "https://nbe-theta.local/schemas/venue-account-state.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Executor's known state of one venue account.\n\n``collateral_balance`` is available margin / USDC. ``open_intent_count``\nlets the risk engine reserve for in-flight orders.",
+  "properties": {
+    "account_id": {
+      "minLength": 1,
+      "title": "Account Id",
+      "type": "string"
+    },
+    "collateral_balance": {
+      "format": "decimal",
+      "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$",
+      "title": "Collateral Balance",
+      "type": "string"
+    },
+    "connectivity": {
+      "default": "ok",
+      "enum": [
+        "ok",
+        "degraded",
+        "down"
+      ],
+      "title": "Connectivity",
+      "type": "string"
+    },
+    "open_intent_count": {
+      "minimum": 0,
+      "title": "Open Intent Count",
+      "type": "integer"
+    },
+    "open_order_count": {
+      "minimum": 0,
+      "title": "Open Order Count",
+      "type": "integer"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "venue": {
+      "const": "polymarket",
+      "title": "Venue",
+      "type": "string"
+    }
+  },
+  "required": [
+    "venue",
+    "account_id",
+    "collateral_balance",
+    "open_intent_count",
+    "open_order_count"
+  ],
+  "title": "VenueAccountState",
+  "type": "object"
+}

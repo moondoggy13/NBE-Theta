@@ -1,0 +1,67 @@
+{
+  "$id": "https://nbe-theta.local/schemas/venue-fill.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One fill against a venue order.",
+  "properties": {
+    "fee": {
+      "format": "decimal",
+      "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$",
+      "title": "Fee",
+      "type": "string"
+    },
+    "liquidity": {
+      "enum": [
+        "maker",
+        "taker"
+      ],
+      "title": "Liquidity",
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "price": {
+      "format": "decimal",
+      "pattern": "^(?!0(\\.0+)?$)(0(\\.\\d+)?|1(\\.0+)?)$",
+      "title": "Price",
+      "type": "string"
+    },
+    "quantity": {
+      "format": "decimal",
+      "pattern": "^(?!0+(\\.0+)?$)(0|[1-9]\\d*)(\\.\\d+)?$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "venue_fill_id": {
+      "minLength": 1,
+      "title": "Venue Fill Id",
+      "type": "string"
+    },
+    "venue_order_id": {
+      "minLength": 1,
+      "title": "Venue Order Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "venue_order_id",
+    "venue_fill_id",
+    "occurred_at",
+    "price",
+    "quantity",
+    "fee",
+    "liquidity"
+  ],
+  "title": "VenueFill",
+  "type": "object"
+}
