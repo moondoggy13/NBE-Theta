@@ -28,14 +28,6 @@ export const metadata: Metadata = {
       "Research, systems, and operating infrastructure for the markets ahead.",
     url: "/",
     siteName: "NB&E Technologies",
-    images: [
-      {
-        url: "/og.png",
-        width: 1792,
-        height: 1024,
-        alt: "NB&E Technologies — Observe the signal.",
-      },
-    ],
     type: "website",
   },
   twitter: {
@@ -43,7 +35,6 @@ export const metadata: Metadata = {
     title: "NB&E Technologies — Observe the signal.",
     description:
       "Research, systems, and operating infrastructure for the markets ahead.",
-    images: ["/og.png"],
   },
 };
 
