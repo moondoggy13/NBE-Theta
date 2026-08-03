@@ -1,0 +1,51 @@
+[
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "conditionId": "0xcond1002",
+    "asset": "10020001",
+    "side": "SELL",
+    "price": "0.31",
+    "size": "75",
+    "timestamp": 1814572800,
+    "transactionHash": "0xTX0004",
+    "makerTaker": "taker"
+  },
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "conditionId": "0xcond1002",
+    "asset": "10020002",
+    "side": "BUY",
+    "price": "0.69",
+    "size": "75",
+    "timestamp": 1814659200
+  },
+  {
+    "conditionId": "0xcond1002",
+    "asset": "10020002",
+    "side": "BUY",
+    "price": "0.10",
+    "size": "10",
+    "timestamp": 1814659200,
+    "note": "no wallet field — must be dropped"
+  },
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "conditionId": "0xcond1002",
+    "asset": "10020002",
+    "side": "HOLD",
+    "price": "0.10",
+    "size": "10",
+    "timestamp": 1814659200,
+    "note": "invalid side — must be dropped"
+  },
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "conditionId": "0xcond1002",
+    "asset": "10020002",
+    "side": "BUY",
+    "price": "0.20",
+    "size": "0",
+    "timestamp": 1814659200,
+    "note": "zero size — must be dropped"
+  }
+]
