@@ -91,6 +91,18 @@
       "slug": "execution-intent-row",
       "id": "https://nbe-theta.local/schemas/execution-intent-row.schema.json",
       "file": "execution-intent-row.schema.json"
+    },
+    {
+      "name": "VenueTrade",
+      "slug": "venue-trade",
+      "id": "https://nbe-theta.local/schemas/venue-trade.schema.json",
+      "file": "venue-trade.schema.json"
+    },
+    {
+      "name": "WalletPositionSnapshot",
+      "slug": "wallet-position-snapshot",
+      "id": "https://nbe-theta.local/schemas/wallet-position-snapshot.schema.json",
+      "file": "wallet-position-snapshot.schema.json"
     }
   ]
 }

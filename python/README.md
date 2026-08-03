@@ -10,6 +10,7 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 |---|---|---|
 | `theta-registry` | PR 3 | Sweep the Gamma API → normalize markets/events/outcomes → version resolution rules → archive raw pages. |
 | `theta-wallet-backfill` | **PR 4 (this)** | `seed`: discover candidates (leaderboards, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
+| `theta-live-monitor` | **PR 4b (this)** | Always-on loop: watchlist trade sync, position snapshots, leaderboard sweeps, heartbeats. |
 | `theta-score-wallets` | later | Wallet skill scoring. |
 | `theta-signal-generator` | later | Emit typed signal envelopes. |
 | … | later | ledger, graph, backtest, chain-enricher. |

@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     # Minimum seconds between Data API calls (per-source rate-limit budget).
     data_api_min_interval_s: float = Field(default=0.2, alias="DATA_API_MIN_INTERVAL_S", ge=0)
 
+    # Live monitor (theta-live-monitor) cadences.
+    monitor_interval_s: float = Field(default=30.0, alias="MONITOR_INTERVAL_S", gt=0)
+    sync_overlap_s: float = Field(default=120.0, alias="SYNC_OVERLAP_S", ge=0)
+    sync_max_pages: int = Field(default=5, alias="SYNC_MAX_PAGES", ge=1)
+    positions_refresh_s: float = Field(default=300.0, alias="POSITIONS_REFRESH_S", gt=0)
+    leaderboard_refresh_s: float = Field(default=3600.0, alias="LEADERBOARD_REFRESH_S", gt=0)
+    leaderboard_limit: int = Field(default=50, alias="LEADERBOARD_LIMIT", ge=1, le=100)
+
     # Where raw API responses are archived (local FS now, R2/S3 later).
     raw_archive_dir: str = Field(default="./data/raw", alias="RAW_ARCHIVE_DIR")
 

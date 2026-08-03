@@ -18,10 +18,12 @@ from nbe_theta_contracts.common import (
     PositiveDecimalStr,
     Side,
     TimeInForce,
+    UnitIntervalStr,
     UnitPriceStr,
     UtcDatetime,
     Venue,
 )
+from nbe_theta_contracts.intel import VenueTrade, WalletPositionSnapshot
 from nbe_theta_contracts.intents import ExecutionIntentRow
 from nbe_theta_contracts.markets import (
     Event,
@@ -62,6 +64,7 @@ __all__ = [
     "Side",
     "SignalEnvelope",
     "TimeInForce",
+    "UnitIntervalStr",
     "UnitPriceStr",
     "UtcDatetime",
     "Venue",
@@ -70,4 +73,6 @@ __all__ = [
     "VenueOrder",
     "VenueOrderEvent",
     "VenuePosition",
+    "VenueTrade",
+    "WalletPositionSnapshot",
 ]

@@ -17,3 +17,5 @@ export type { VenueFill } from "./venue-fill.js";
 export type { VenueOrderEvent } from "./venue-order-event.js";
 export type { VenueOrder } from "./venue-order.js";
 export type { VenuePosition } from "./venue-position.js";
+export type { VenueTrade } from "./venue-trade.js";
+export type { WalletPositionSnapshot } from "./wallet-position-snapshot.js";

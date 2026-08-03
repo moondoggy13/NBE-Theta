@@ -34,6 +34,8 @@ const VALID: ValidCase[] = [
   { file: "signal_envelope.valid.json", schema: "signal-envelope" },
   { file: "market.valid.json", schema: "market" },
   { file: "execution_intent_row.valid.json", schema: "execution-intent-row" },
+  { file: "venue_trade.valid.json", schema: "venue-trade" },
+  { file: "wallet_position_snapshot.valid.json", schema: "wallet-position-snapshot" },
 ];
 
 const INVALID: InvalidCase[] = [
@@ -44,6 +46,9 @@ const INVALID: InvalidCase[] = [
   { file: "order_intent.invalid.wrong_schema_version.json", schema: "order-intent", expectSubstring: "schema_version" },
   { file: "order_intent.invalid.extra_field.json", schema: "order-intent", expectSubstring: "additionalProperties" },
   { file: "signal_envelope.invalid.confidence_out_of_range.json", schema: "signal-envelope", expectSubstring: "confidence" },
+  { file: "venue_trade.invalid.price_above_one.json", schema: "venue-trade", expectSubstring: "price" },
+  { file: "venue_trade.invalid.bad_wallet.json", schema: "venue-trade", expectSubstring: "wallet" },
+  { file: "wallet_position_snapshot.invalid.negative_size.json", schema: "wallet-position-snapshot", expectSubstring: "size" },
 ];
 
 // Compile-time smoke: after import, exercise each generated root type

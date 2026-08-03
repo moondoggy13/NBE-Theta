@@ -6,11 +6,12 @@ Systematic copy trading of top Polymarket traders. Rank on-chain leaders by risk
 
 ## What we're building
 
-- **Leader discovery & ranking** — surface Polymarket wallets with durable, risk-adjusted edge (not just raw PnL); score on consistency, drawdown, and market breadth. _[building]_
+- **Leader discovery & tracking** — candidate seeding from leaderboards/holders, resumable trade-history backfill, live position + activity tracking for a curated watchlist (`theta-wallet-backfill`, `theta-live-monitor`). _[live]_
+- **Leader ranking** — statistically-validated wallet scoring against contemporaneous executable prices (FDR-controlled, walk-forward). _[building — a leaderboard-PnL prior tiers wallets today]_
 - **Copy filter** — don't blindly mirror. Pass every candidate follow through a quant layer (regime, sizing, correlation, staleness) before it becomes an order. _[building]_
 - **Execution** — place and manage follows on the Polymarket CLOB with the same paper/live safety gating the BTC engine already enforces. _[building]_
 - **Risk-first sizing** — fractional-Kelly / vol-targeted position sizing, per-trade risk caps, and an automatic drawdown kill switch. _[live — reusable as-is]_
-- **Observability** — real-time dashboard for positions, signals, equity, and logs. _[live]_
+- **Observability** — real-time dashboard plus the **Smart Money cockpit**: leader roster, conviction board (per-market smart-money consensus with entry-vs-current price rails), and live tape. _[live]_
 - **Research** — deterministic backtests and parameter sweeps offline before anything touches capital. _[live for the BTC engine]_
 
 ## Stack
