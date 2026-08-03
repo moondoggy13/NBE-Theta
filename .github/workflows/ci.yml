@@ -89,10 +89,11 @@ jobs:
       - name: Test
         run: pnpm test
 
-      # Build is temporarily excluded from CI because `main` has a
-      # pre-existing typecheck failure in `ONCHAIN_THETA_AGENT/` (missing
-      # `@coinbase/agentkit` dep). It will be reintroduced in a follow-up
-      # PR that either fixes that subdir or excludes it from the build.
+      # Re-enabled: the blocker was ONCHAIN_THETA_AGENT/ (an orphaned
+      # Coinbase AgentKit scaffold with unresolvable deps), deleted with
+      # the rest of the BTC code.
+      - name: Build
+        run: pnpm build
 
   python:
     name: Python (scaffold)

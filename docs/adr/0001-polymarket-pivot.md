@@ -61,13 +61,28 @@ not a microservice system. Redis is deferred until measured need.
 Nothing destructive lands until replacements exist and are tested. The
 current BTC system is frozen behind the git tag `btc-v1-final`. The
 rebuild happens on `rebuild/polymarket-v2` via additive migrations
-(`007_*` and onward) and new process directories. Existing tables
+(`005_*` and onward) and new process directories. Existing tables
 (`orders`, `fills`, `positions`, `pnl_snapshots`, `risk_state`, etc.)
 remain in place; the new executor writes to new tables
 (`venue_orders`, `venue_fills`, `venue_positions`, `execution_intents`,
-etc.). A follow-up PR after Phase 6 archives the BTC tables once the
-new execution path has run under paper conditions for a validation
-window.
+etc.).
+
+**Amendment (BTC purge).** The BTC *code* was deleted from the working
+tree ahead of that schedule, because live BTC gates in shared paths
+(`/api/health`, `package.json` scripts, the CI build) were obstructing
+Polymarket work rather than sitting inertly beside it. The *tables*
+still follow the two-step rule. Migration `012_retire_btc_tables.sql`
+is step 1: it revokes anon/authenticated read on the 14 dead BTC-era
+tables and removes them from `supabase_realtime`, but drops nothing.
+That closes the real exposure — migration 003 gave `anon` read on all
+of them ("v1 is a single-tenant trading bot, so anon gets
+read-everything") — while leaving the data recoverable. A follow-up
+migration may drop them after ≥ 30 days, with `APPROVED: destructive
+migration` in its commit message.
+
+`risk_state` is deliberately exempt: the kill switch is venue-neutral,
+`/api/kill-switch` and `/api/health` still use it, and the executor
+(PR 8) will too.
 
 ## Consequences
 

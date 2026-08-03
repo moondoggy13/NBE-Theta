@@ -10,7 +10,9 @@
 --      tables DO,
 --   4. the realtime publication contains the intended set and none of the
 --      raw wallet/trade tables,
---   5. behaviorally: an anon-role SELECT sees an anon-allowed table's row
+--   5. the retired BTC-era tables (migration 012) are anon-denied and no
+--      longer streamed, and `risk_state` still is neither,
+--   6. behaviorally: an anon-role SELECT sees an anon-allowed table's row
 --      but is denied a deny-list table's row.
 --
 -- Everything runs inside a transaction that ROLLBACKs, so no test data
@@ -133,7 +135,57 @@ begin
   raise notice 'ok: realtime publication membership correct';
 end $$;
 
--- 5: behavioral anon visibility. Insert one anon-allowed row (markets)
+-- 5: the BTC-era tables are retired (migration 012) — no anon read, no
+-- realtime stream. They still EXIST (retiring is not dropping); what must
+-- be gone is the browser-reachable surface migration 003 handed them.
+do $$
+declare
+  t text;
+  retired text[] := array[
+    'claude_analyses',
+    'candles', 'ticks', 'l2_snapshots', 'strategy_signals',
+    'orders', 'fills', 'positions', 'pnl_snapshots',
+    'backtest_runs', 'system_logs',
+    'regime_posteriors', 'master_weights', 'strategy_validation'
+  ];
+  n int;
+begin
+  foreach t in array retired loop
+    if to_regclass('public.' || t) is null then
+      raise exception 'retired table % should still exist (012 retires, it does not drop)', t;
+    end if;
+    select count(*) into n from pg_policies
+      where schemaname = 'public' and tablename = t and 'anon' = any(roles);
+    if n > 0 then
+      raise exception 'retired BTC table % still has an anon policy', t;
+    end if;
+    if has_table_privilege('anon', 'public.' || t, 'SELECT') then
+      raise exception 'anon has SELECT privilege on retired BTC table %', t;
+    end if;
+    if has_table_privilege('authenticated', 'public.' || t, 'SELECT') then
+      raise exception 'authenticated has SELECT privilege on retired BTC table %', t;
+    end if;
+    select count(*) into n from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t;
+    if n > 0 then
+      raise exception 'retired BTC table % is still in supabase_realtime', t;
+    end if;
+  end loop;
+
+  -- risk_state is the one pre-pivot table that survives on purpose: the
+  -- kill switch is venue-neutral and /api/kill-switch reads and writes it.
+  if to_regclass('public.risk_state') is null then
+    raise exception 'risk_state must survive the pivot — the kill switch uses it';
+  end if;
+  select count(*) into n from pg_policies
+    where schemaname = 'public' and tablename = 'risk_state' and 'anon' = any(roles);
+  if n = 0 then
+    raise exception 'risk_state lost its anon read policy (the dashboard reads it)';
+  end if;
+  raise notice 'ok: 14 BTC tables retired, risk_state still live';
+end $$;
+
+-- 6: behavioral anon visibility. Insert one anon-allowed row (markets)
 -- and one deny row (wallets) as the superuser, then read as the anon
 -- role. anon should SELECT markets (granted + RLS allow-all policy) and
 -- be DENIED wallets — note deny is at the privilege level (no GRANT), so

@@ -27,8 +27,11 @@ Dashboard is `apps/web` (Next.js). Database is Supabase Postgres.
 Nothing else, yet — see the plan in `docs/adr/0001-polymarket-pivot.md`
 and the rollout PR list there.
 
-The pre-pivot BTC system is preserved behind the git tag
-`btc-v1-final`. New work does not resurrect it.
+The pre-pivot BTC system has been DELETED from the working tree and
+survives only behind the git tag `btc-v1-final`. There is no `worker/`,
+no Coinbase adapter, no OHLC strategy layer, no `ONCHAIN_THETA_AGENT/`.
+New work does not resurrect any of it — see CLAUDE.md for the specific
+things never to reintroduce.
 
 ## Project boundaries
 
@@ -60,7 +63,7 @@ Never commit any of these:
 - `.env`, `.env.local`, `.env.*.local`
 - Any file matching `**/signer*.json`, `**/keystore*.json`,
   `**/wallet-secret*`, `**/*.pem`, `**/*.key`
-- `apps/executor/.secrets/`, `agent-host/.secrets/`
+- `apps/executor/.secrets/`
 - Any file that ends up under a `secret*/` directory
 
 CI runs a secret scan on every push. Secret material may only appear
