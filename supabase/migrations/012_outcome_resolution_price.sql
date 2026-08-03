@@ -1,5 +1,5 @@
 -- ────────────────────────────────────────────────────────────────────────────
--- PR 5 / 011 — Settled outcome prices
+-- PR 5 / 012 — Settled outcome prices
 --
 -- Additive. Scoring needs the realized payoff of each outcome token
 -- (0 or 1 for a settled binary market). Without it the whole skill layer

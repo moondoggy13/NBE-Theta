@@ -46,7 +46,7 @@ Specifically, do NOT reintroduce:
 
 The BTC *tables* are still in the database — deleting code is
 reversible, dropping tables is not, so they follow the two-step rule in
-`AGENTS.md`. Migration `012_retire_btc_tables.sql` did step 1: it
+`AGENTS.md`. Migration `013_retire_btc_tables.sql` did step 1: it
 revoked anon read and pulled them out of `supabase_realtime`, so
 nothing reaches them any more, but the rows are intact. They are
 `candles`, `ticks`, `l2_snapshots`, `strategy_signals`, `orders`,

@@ -72,17 +72,30 @@ class RecordedDataApiFetcher:
         trade_pages: list[list[dict[str, Any]]] | None = None,
         leaderboard: list[dict[str, Any]] | None = None,
         holders: list[dict[str, Any]] | None = None,
+        positions: list[dict[str, Any]] | None = None,
         fail_after: int | None = None,
+        fail_paths: set[str] | None = None,
     ) -> None:
         self.corpus: list[dict[str, Any]] = [r for p in (trade_pages or []) for r in p]
         self.leaderboard = leaderboard or []
         self.holders = holders or []
+        self.positions = positions or []
         self.fail_after = fail_after
+        # Paths that always raise — used to prove one failing phase
+        # never aborts the monitor tick.
+        self.fail_paths = fail_paths or set()
         self.trade_calls = 0
         self.calls: list[str] = []
 
     def get_page(self, path: str, params: dict[str, Any]) -> tuple[Any, bytes]:
         self.calls.append(path)
+        if path in self.fail_paths:
+            raise RuntimeError(f"boom: venue 500 on {path}")
+        if path == "/positions":
+            limit = int(params["limit"])
+            offset = int(params["offset"])
+            window = self.positions[offset : offset + limit]
+            return window, json.dumps(window).encode("utf-8")
         if path == "/trades":
             self.trade_calls += 1
             if self.fail_after is not None and self.trade_calls > self.fail_after:
@@ -114,3 +127,8 @@ def leaderboard_rows() -> list[dict[str, Any]]:
 @pytest.fixture
 def holder_rows() -> list[dict[str, Any]]:
     return load_fixture("dataapi_holders.json")
+
+
+@pytest.fixture
+def position_rows() -> list[dict[str, Any]]:
+    return load_fixture("dataapi_positions.json")

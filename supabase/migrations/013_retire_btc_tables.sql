@@ -1,5 +1,5 @@
 -- ────────────────────────────────────────────────────────────────────────────
--- 012 — Retire the BTC-era tables (step 1 of 2: stop reading/writing)
+-- 013 — Retire the BTC-era tables (step 1 of 2: stop reading/writing)
 --
 -- The BTC/Coinbase system was deleted from the working tree; it survives
 -- only behind the git tag `btc-v1-final`. Its tables, created by
@@ -77,7 +77,7 @@ begin
     execute format(
       'comment on table %I is %L',
       t,
-      'RETIRED (migration 012): pre-pivot BTC system, deleted from the '
+      'RETIRED (migration 013): pre-pivot BTC system, deleted from the '
       || 'working tree at tag btc-v1-final. Nothing reads or writes this '
       || 'table. Droppable in a follow-up migration; see AGENTS.md.'
     );

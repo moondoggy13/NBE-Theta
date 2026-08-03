@@ -19,13 +19,19 @@ repository. It survives only behind the git tag `btc-v1-final`. See
 
 | Layer | Where | Status |
 |---|---|---|
-| **Intelligence** — market registry, wallet discovery, trade history, (later) chain enrichment | `python/nbe_theta/{ingest,ledger}` | built |
+| **Intelligence** — market registry, wallet discovery, trade history, live position + leaderboard monitoring, (later) chain enrichment | `python/nbe_theta/{ingest,ledger}` | built |
 | **Signal** — position reconstruction, skill scoring, significance, tiering, walk-forward | `python/nbe_theta/{analytics,backtest}` | built |
 | **Execution** — durable intent outbox, CLOB adapter, portfolio risk, reconciliation | `apps/executor` | **not built** (PR 8) |
 
 Supporting: `packages/contracts` (Pydantic → JSON Schema → TypeScript,
 the single source of truth for durable payloads), `supabase/migrations`
-(additive-only), and a Next.js dashboard.
+(additive-only), and a Next.js dashboard whose **Smart Money** cockpit
+shows the leader roster, a conviction board plotting every tracked entry
+against the current price, and the live tape.
+
+The tiers on that cockpit come from a **leaderboard-PnL prior** today,
+not from the validated scorer. The statistical tiering described below
+only starts labelling wallets once the alpha gate has been run for real.
 
 ## Commands
 
@@ -37,6 +43,9 @@ cd python && uv sync --extra dev   # python worker deps
 uv run theta-registry run              # sweep Gamma → market registry
 uv run theta-wallet-backfill seed      # leaderboards/holders → candidates
 uv run theta-wallet-backfill run       # backfill wallet trade history
+uv run theta-live-monitor run          # steady state: watchlist → positions
+                                       #   → leaderboard → heartbeat
+uv run theta-live-monitor watch 0x…    # add one wallet to the watchlist
 
 # Signal
 uv run theta-score-wallets score --as-of 2027-06-01T00:00:00Z
@@ -88,6 +97,8 @@ pipeline would otherwise manufacture false alpha:
 - No private key in the web process or in CI.
 - Raw wallet-intelligence tables are service-role only — never exposed
   through anonymous RLS.
+- Control routes (`/api/kill-switch`, `/api/watchlist`) are bearer-gated
+  and write an `operator_actions` audit row.
 - See `AGENTS.md` for the full development contract.
 
 ## Docs

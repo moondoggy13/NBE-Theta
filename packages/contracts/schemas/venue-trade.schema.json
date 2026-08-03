@@ -1,0 +1,126 @@
+{
+  "$id": "https://nbe-theta.local/schemas/venue-trade.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One observed trade by a tracked (or candidate) wallet.\n\n``source_trade_id`` is the venue's stable id where one exists; the\nData API exposes none for /trades rows, so the ingest layer\nsynthesizes a canonical content hash \u2014 either way it is unique per\nvenue and is the dedupe key (``unique (venue, source_trade_id)``).",
+  "properties": {
+    "condition_id": {
+      "minLength": 1,
+      "title": "Condition Id",
+      "type": "string"
+    },
+    "maker_taker": {
+      "anyOf": [
+        {
+          "enum": [
+            "maker",
+            "taker"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Maker Taker"
+    },
+    "notional": {
+      "format": "decimal",
+      "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$",
+      "title": "Notional",
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "outcome_token_id": {
+      "minLength": 1,
+      "title": "Outcome Token Id",
+      "type": "string"
+    },
+    "price": {
+      "format": "decimal",
+      "pattern": "^(?!0(\\.0+)?$)(0(\\.\\d+)?|1(\\.0+)?)$",
+      "title": "Price",
+      "type": "string"
+    },
+    "quantity": {
+      "format": "decimal",
+      "pattern": "^(?!0+(\\.0+)?$)(0|[1-9]\\d*)(\\.\\d+)?$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "raw_object_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Raw Object Id"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "side": {
+      "enum": [
+        "BUY",
+        "SELL"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "source_trade_id": {
+      "minLength": 1,
+      "title": "Source Trade Id",
+      "type": "string"
+    },
+    "tx_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tx Hash"
+    },
+    "venue": {
+      "const": "polymarket",
+      "title": "Venue",
+      "type": "string"
+    },
+    "wallet": {
+      "pattern": "^0x[0-9a-f]{40}$",
+      "title": "Wallet",
+      "type": "string"
+    }
+  },
+  "required": [
+    "venue",
+    "source_trade_id",
+    "wallet",
+    "condition_id",
+    "outcome_token_id",
+    "side",
+    "price",
+    "quantity",
+    "notional",
+    "occurred_at"
+  ],
+  "title": "VenueTrade",
+  "type": "object"
+}

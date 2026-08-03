@@ -71,7 +71,7 @@ etc.).
 tree ahead of that schedule, because live BTC gates in shared paths
 (`/api/health`, `package.json` scripts, the CI build) were obstructing
 Polymarket work rather than sitting inertly beside it. The *tables*
-still follow the two-step rule. Migration `012_retire_btc_tables.sql`
+still follow the two-step rule. Migration `013_retire_btc_tables.sql`
 is step 1: it revokes anon/authenticated read on the 14 dead BTC-era
 tables and removes them from `supabase_realtime`, but drops nothing.
 That closes the real exposure — migration 003 gave `anon` read on all

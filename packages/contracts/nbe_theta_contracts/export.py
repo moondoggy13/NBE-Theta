@@ -40,6 +40,8 @@ from nbe_theta_contracts import (
     VenueOrder,
     VenueOrderEvent,
     VenuePosition,
+    VenueTrade,
+    WalletPositionSnapshot,
 )
 
 app = typer.Typer(add_completion=False, help="Contract export CLI.")
@@ -65,6 +67,9 @@ EXPORTED_MODELS: list[type[BaseModel]] = [
     SignalEnvelope,
     # outbox
     ExecutionIntentRow,
+    # wallet intel
+    VenueTrade,
+    WalletPositionSnapshot,
 ]
 
 SCHEMA_ID_BASE = "https://nbe-theta.local/schemas"

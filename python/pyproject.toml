@@ -26,6 +26,7 @@ dev = [
 theta-registry = "nbe_theta.ingest.cli:app"
 theta-wallet-backfill = "nbe_theta.ingest.wallet_cli:app"
 theta-score-wallets = "nbe_theta.analytics.cli:app"
+theta-live-monitor = "nbe_theta.ingest.monitor_cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -53,6 +54,7 @@ select = ["E", "F", "W", "I", "UP", "B"]
 "nbe_theta/ingest/cli.py" = ["B008"]
 "nbe_theta/ingest/wallet_cli.py" = ["B008"]
 "nbe_theta/analytics/cli.py" = ["B008"]
+"nbe_theta/ingest/monitor_cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"

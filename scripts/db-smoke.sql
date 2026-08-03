@@ -10,7 +10,7 @@
 --      tables DO,
 --   4. the realtime publication contains the intended set and none of the
 --      raw wallet/trade tables,
---   5. the retired BTC-era tables (migration 012) are anon-denied and no
+--   5. the retired BTC-era tables (migration 013) are anon-denied and no
 --      longer streamed, and `risk_state` still is neither,
 --   6. behaviorally: an anon-role SELECT sees an anon-allowed table's row
 --      but is denied a deny-list table's row.
@@ -135,7 +135,7 @@ begin
   raise notice 'ok: realtime publication membership correct';
 end $$;
 
--- 5: the BTC-era tables are retired (migration 012) — no anon read, no
+-- 5: the BTC-era tables are retired (migration 013) — no anon read, no
 -- realtime stream. They still EXIST (retiring is not dropping); what must
 -- be gone is the browser-reachable surface migration 003 handed them.
 do $$
@@ -152,7 +152,7 @@ declare
 begin
   foreach t in array retired loop
     if to_regclass('public.' || t) is null then
-      raise exception 'retired table % should still exist (012 retires, it does not drop)', t;
+      raise exception 'retired table % should still exist (013 retires, it does not drop)', t;
     end if;
     select count(*) into n from pg_policies
       where schemaname = 'public' and tablename = t and 'anon' = any(roles);

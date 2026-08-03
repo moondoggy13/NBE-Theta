@@ -84,6 +84,22 @@ services:
       DATABASE_URL: postgres://supabase_admin:postgres@db:5432/postgres
       LOG_LEVEL: info
 
+  # Wallet-activity live monitor: watchlist sync, positions snapshots,
+  # leaderboard sweeps, heartbeats. Same image as python-worker.
+  python-monitor:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["uv", "run", "theta-live-monitor", "run"]
+    environment:
+      DATABASE_URL: postgres://supabase_admin:postgres@db:5432/postgres
+      LOG_LEVEL: info
+      MONITOR_INTERVAL_S: "30"
+
   # TypeScript executor (holds the signer; talks to Polymarket).
   # Scaffold only. In production this container runs on a private host,
   # never behind a public inbound endpoint.

@@ -27,6 +27,8 @@ from nbe_theta_contracts import (
     Market,
     OrderIntent,
     SignalEnvelope,
+    VenueTrade,
+    WalletPositionSnapshot,
 )
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
@@ -36,6 +38,8 @@ VALID_CASES: list[tuple[str, type[BaseModel]]] = [
     ("signal_envelope.valid.json", SignalEnvelope),
     ("market.valid.json", Market),
     ("execution_intent_row.valid.json", ExecutionIntentRow),
+    ("venue_trade.valid.json", VenueTrade),
+    ("wallet_position_snapshot.valid.json", WalletPositionSnapshot),
 ]
 
 INVALID_CASES: list[tuple[str, type[BaseModel], str]] = [
@@ -50,6 +54,13 @@ INVALID_CASES: list[tuple[str, type[BaseModel], str]] = [
         "signal_envelope.invalid.confidence_out_of_range.json",
         SignalEnvelope,
         "confidence",
+    ),
+    ("venue_trade.invalid.price_above_one.json", VenueTrade, "price"),
+    ("venue_trade.invalid.bad_wallet.json", VenueTrade, "wallet"),
+    (
+        "wallet_position_snapshot.invalid.negative_size.json",
+        WalletPositionSnapshot,
+        "size",
     ),
 ]
 
