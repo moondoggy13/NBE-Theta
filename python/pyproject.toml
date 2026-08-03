@@ -24,6 +24,7 @@ dev = [
 
 [project.scripts]
 theta-registry = "nbe_theta.ingest.cli:app"
+theta-wallet-backfill = "nbe_theta.ingest.wallet_cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -44,6 +45,12 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer declares CLI options as call-valued defaults — that IS the
+# framework's idiom, so B008 doesn't apply to the command modules.
+"nbe_theta/ingest/cli.py" = ["B008"]
+"nbe_theta/ingest/wallet_cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"

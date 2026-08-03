@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     gamma_max_pages: int = Field(default=0, alias="GAMMA_MAX_PAGES", ge=0)
     gamma_timeout_s: float = Field(default=30.0, alias="GAMMA_TIMEOUT_S", gt=0)
 
+    # Data API (Polymarket wallet history + discovery).
+    data_api_base_url: str = Field(
+        default="https://data-api.polymarket.com", alias="DATA_API_BASE_URL"
+    )
+    data_api_page_limit: int = Field(default=100, alias="DATA_API_PAGE_LIMIT", ge=1, le=500)
+    data_api_timeout_s: float = Field(default=30.0, alias="DATA_API_TIMEOUT_S", gt=0)
+    # Minimum seconds between Data API calls (per-source rate-limit budget).
+    data_api_min_interval_s: float = Field(default=0.2, alias="DATA_API_MIN_INTERVAL_S", ge=0)
+
     # Where raw API responses are archived (local FS now, R2/S3 later).
     raw_archive_dir: str = Field(default="./data/raw", alias="RAW_ARCHIVE_DIR")
 
