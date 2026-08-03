@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, ty
 type WindowId = "welcome" | "network" | "signals" | "research" | "automation" | "login" | "contact";
 type WindowState = Record<WindowId, { open: boolean; x: number; y: number }>;
 let sharedAudioContext: AudioContext | undefined;
-const legacyAutomationSite = "https://nbetechnology-site-i0y2a0ywn-nb-e-team-projects.vercel.app/";
 
 const initialWindows: WindowState = {
   welcome: { open: true, x: 190, y: 86 },
@@ -237,7 +236,7 @@ export function RetroDesktop() {
           <div className="retro-portal-status" aria-hidden="true"><span />LEGACY PORTAL · AUTOMATION SYSTEMS</div>
           <iframe
             title="NB&E Technologies legacy automation systems"
-            src={legacyAutomationSite}
+            src="/legacy-automation"
             loading="eager"
             referrerPolicy="strict-origin-when-cross-origin"
             scrolling="auto"
