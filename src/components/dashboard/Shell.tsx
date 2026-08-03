@@ -22,6 +22,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type View = "Command Center" | "Copy Desk" | "Positions" | "Activity" | "Controls";
@@ -106,10 +107,10 @@ export function DeltaShell() {
       <div className="relative mx-auto flex min-h-[calc(100vh-24px)] max-w-[1720px] flex-col overflow-hidden rounded-[24px] border border-white/10 bg-[#10171b]/90 shadow-[0_24px_90px_rgba(0,0,0,.35)] md:min-h-[calc(100vh-40px)]">
         <header className="flex min-h-[74px] flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4 md:px-7">
           <div className="flex items-center gap-4">
-            <a href="/" className="group flex items-center gap-3 no-underline">
+            <Link href="/" className="group flex items-center gap-3 no-underline">
               <span className="grid h-10 w-10 place-items-center rounded-full border border-[#d7ff7a]/60 bg-[#d7ff7a] text-xl font-medium text-[#111711] shadow-[0_0_32px_rgba(215,255,122,.18)] transition-transform group-hover:scale-105">Θ</span>
               <span><b className="block text-sm tracking-[-.04em] text-white">NB&amp;E Technologies</b><span className="font-mono text-[9px] uppercase tracking-[.18em] text-[#8d99a5]">Theta / private operator</span></span>
-            </a>
+            </Link>
             <span className="hidden h-8 w-px bg-white/10 md:block" />
             <span className="hidden font-mono text-[10px] uppercase tracking-[.16em] text-[#c8d1d4] md:block">Polymarket copy trader</span>
           </div>
