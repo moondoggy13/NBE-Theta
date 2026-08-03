@@ -1,0 +1,252 @@
+{
+  "$id": "https://nbe-theta.local/schemas/wallet-position-snapshot.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A tracked wallet's current holding of one outcome token.\n\nSnapshot semantics: the ingest layer replaces a wallet's full row\nset on each refresh, so consumers treat ``captured_at`` as the\nas-of time and absence as \"no longer held\". P&L fields are signed\n(losses are negative); prices are [0, 1] marks \u2014 a resolved-losing\ntoken legitimately marks at exactly 0.",
+  "properties": {
+    "avg_price": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Avg Price"
+    },
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "cash_pnl": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^-?(0|[1-9]\\d*)(\\.\\d+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cash Pnl"
+    },
+    "condition_id": {
+      "minLength": 1,
+      "title": "Condition Id",
+      "type": "string"
+    },
+    "cur_price": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^(0(\\.\\d+)?|1(\\.0+)?)$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cur Price"
+    },
+    "current_value": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Current Value"
+    },
+    "end_date": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "End Date"
+    },
+    "event_slug": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Event Slug"
+    },
+    "initial_value": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Initial Value"
+    },
+    "neg_risk": {
+      "default": false,
+      "title": "Neg Risk",
+      "type": "boolean"
+    },
+    "outcome_index": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outcome Index"
+    },
+    "outcome_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outcome Name"
+    },
+    "outcome_token_id": {
+      "minLength": 1,
+      "title": "Outcome Token Id",
+      "type": "string"
+    },
+    "percent_pnl": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^-?(0|[1-9]\\d*)(\\.\\d+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Percent Pnl"
+    },
+    "realized_pnl": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^-?(0|[1-9]\\d*)(\\.\\d+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Realized Pnl"
+    },
+    "redeemable": {
+      "default": false,
+      "title": "Redeemable",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "description": "Schema version of this payload; consumers reject on mismatch.",
+      "pattern": "^1\\.0\\.0$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "size": {
+      "format": "decimal",
+      "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$",
+      "title": "Size",
+      "type": "string"
+    },
+    "slug": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Slug"
+    },
+    "title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Title"
+    },
+    "total_bought": {
+      "anyOf": [
+        {
+          "format": "decimal",
+          "pattern": "^(0|[1-9]\\d*)(\\.\\d+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Bought"
+    },
+    "venue": {
+      "const": "polymarket",
+      "title": "Venue",
+      "type": "string"
+    },
+    "wallet": {
+      "pattern": "^0x[0-9a-f]{40}$",
+      "title": "Wallet",
+      "type": "string"
+    }
+  },
+  "required": [
+    "venue",
+    "wallet",
+    "condition_id",
+    "outcome_token_id",
+    "size",
+    "captured_at"
+  ],
+  "title": "WalletPositionSnapshot",
+  "type": "object"
+}

@@ -1,0 +1,60 @@
+[
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "asset": "11110001",
+    "conditionId": "0xcond1001",
+    "size": "3150.5",
+    "avgPrice": "0.405",
+    "initialValue": "1275.95",
+    "currentValue": "1417.72",
+    "cashPnl": "141.77",
+    "percentPnl": "11.11",
+    "totalBought": "4200.5",
+    "realizedPnl": "55.2",
+    "curPrice": "0.45",
+    "redeemable": false,
+    "negativeRisk": false,
+    "title": "Will candidate A win the 2028 election?",
+    "slug": "candidate-a-2028",
+    "eventSlug": "election-2028",
+    "outcome": "Yes",
+    "outcomeIndex": 0,
+    "endDate": "2028-11-07T00:00:00Z"
+  },
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "asset": "22220002",
+    "conditionId": "0xcond2002",
+    "size": "700",
+    "avgPrice": "0.62",
+    "initialValue": "434.00",
+    "currentValue": "0",
+    "cashPnl": "-434.00",
+    "percentPnl": "-100",
+    "totalBought": "1300",
+    "realizedPnl": "120",
+    "curPrice": 0,
+    "redeemable": true,
+    "negativeRisk": true,
+    "title": "Will the bill pass in 2026?",
+    "slug": "bill-2026",
+    "eventSlug": "legislation-2026",
+    "outcome": "Yes",
+    "outcomeIndex": 0,
+    "endDate": "2026-06-30T00:00:00Z"
+  },
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "asset": "33330003",
+    "conditionId": "0xcond3003",
+    "size": "10",
+    "avgPrice": "1.4",
+    "curPrice": "0.5",
+    "outcome": "No",
+    "outcomeIndex": 1
+  },
+  {
+    "proxyWallet": "0xAAA1000000000000000000000000000000000001",
+    "size": "50"
+  }
+]

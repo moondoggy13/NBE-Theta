@@ -158,6 +158,17 @@ UnitPriceStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_UNIT_PRICE
 """Wire-safe Decimal in (0, 1] — prediction-market outcome prices.
 Pair with Field(gt=0, le=1)."""
 
+# [0, 1] — a probability-space MARK, where 0 is legitimate: the current
+# price of a resolved-losing outcome token is exactly 0. Distinct from
+# _UNIT_PRICE_PATTERN, whose lower bound is open because a trade can
+# never execute at 0.
+_UNIT_INTERVAL_PATTERN = r"^(0(\.\d+)?|1(\.0+)?)$"
+
+UnitIntervalStr = Annotated[Decimal, _DECIMAL_SERIALIZER, _decimal_type(_UNIT_INTERVAL_PATTERN)]
+"""Wire-safe Decimal in [0, 1] — marks/averages that may sit at 0 (a
+resolved-losing token) or 1 (a resolved-winning token).
+Pair with Field(ge=0, le=1)."""
+
 # ── Time ──────────────────────────────────────────────────────────
 
 

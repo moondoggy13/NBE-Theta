@@ -32,6 +32,8 @@ import venueFillSchema from "../schemas/venue-fill.schema.json" with { type: "js
 import venueOrderSchema from "../schemas/venue-order.schema.json" with { type: "json" };
 import venueOrderEventSchema from "../schemas/venue-order-event.schema.json" with { type: "json" };
 import venuePositionSchema from "../schemas/venue-position.schema.json" with { type: "json" };
+import venueTradeSchema from "../schemas/venue-trade.schema.json" with { type: "json" };
+import walletPositionSnapshotSchema from "../schemas/wallet-position-snapshot.schema.json" with { type: "json" };
 
 // The complete schema list. Ajv keys by $id (set by the Python export
 // CLI to `https://nbe-theta.local/schemas/<slug>.schema.json`).
@@ -51,6 +53,8 @@ const SCHEMAS: readonly Record<string, unknown>[] = [
   venueOrderSchema as Record<string, unknown>,
   venueOrderEventSchema as Record<string, unknown>,
   venuePositionSchema as Record<string, unknown>,
+  venueTradeSchema as Record<string, unknown>,
+  walletPositionSnapshotSchema as Record<string, unknown>,
 ];
 
 // Ajv 2020-12. `strict: false` is important — Pydantic emits `title`
@@ -89,7 +93,9 @@ export type SchemaName =
   | "venue-fill"
   | "venue-order"
   | "venue-order-event"
-  | "venue-position";
+  | "venue-position"
+  | "venue-trade"
+  | "wallet-position-snapshot";
 
 const ID_PREFIX = "https://nbe-theta.local/schemas/";
 
