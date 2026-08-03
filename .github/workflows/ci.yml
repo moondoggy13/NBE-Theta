@@ -98,10 +98,9 @@ jobs:
     name: Python (scaffold)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # The `python/nbe_theta` package lands in PR 3. Until then only the
-    # contracts package has Python code, and that's covered by the
-    # `contracts` job. This job stays here as a skeleton so PR 3 can
-    # populate it without touching the workflow shape.
+    # Covers python/nbe_theta (the worker package). The DB-backed
+    # integration tests self-skip here (no DATABASE_URL); their logic is
+    # also covered by the in-memory replay tests that always run.
     #
     # NOTE: the gate is a STEP (not a job-level `if`) because hashFiles()
     # is only available in step-level expression contexts — a job-level
@@ -127,7 +126,7 @@ jobs:
       - name: uv sync
         if: steps.gate.outputs.present == 'true'
         working-directory: python
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
 
       - name: Ruff lint
         if: steps.gate.outputs.present == 'true'

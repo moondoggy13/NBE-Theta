@@ -1,4 +1,0 @@
-params:
-  bb_period: [10, 15, 20, 25, 30]
-  bb_std: [1.5, 2.0, 2.5]
-  atr_stop_mult: [1.0, 1.5, 2.0]

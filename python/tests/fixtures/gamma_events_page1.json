@@ -1,0 +1,80 @@
+[
+  {
+    "id": "100",
+    "title": "US Presidential Election 2028",
+    "slug": "us-presidential-election-2028",
+    "startDate": "2027-01-01T00:00:00Z",
+    "endDate": "2028-11-07T23:59:00Z",
+    "active": true,
+    "closed": false,
+    "archived": false,
+    "tags": [{ "label": "Politics", "slug": "politics" }],
+    "markets": [
+      {
+        "id": "1001",
+        "question": "Will candidate A win the 2028 election?",
+        "conditionId": "0xcond1001",
+        "slug": "cand-a-2028",
+        "description": "Resolves YES if candidate A is certified as winner.",
+        "resolutionSource": "AP",
+        "startDate": "2027-01-02T00:00:00Z",
+        "endDate": "2028-11-07T23:59:00Z",
+        "createdAt": "2027-01-02T00:00:00Z",
+        "updatedAt": "2027-06-01T00:00:00Z",
+        "outcomes": "[\"Yes\", \"No\"]",
+        "clobTokenIds": "[\"11110001\", \"11110002\"]",
+        "active": true,
+        "closed": false,
+        "archived": false,
+        "enableOrderBook": true,
+        "negRisk": false,
+        "umaResolutionStatus": ""
+      },
+      {
+        "id": "1002",
+        "question": "Will candidate B win the 2028 election?",
+        "conditionId": "0xcond1002",
+        "slug": "cand-b-2028",
+        "description": "Resolves YES if candidate B is certified as winner.",
+        "resolutionSource": "AP",
+        "startDate": "2027-01-02T00:00:00Z",
+        "endDate": "2028-11-07T23:59:00Z",
+        "createdAt": "2027-01-02T00:00:00Z",
+        "updatedAt": "2027-06-01T00:00:00Z",
+        "outcomes": "[\"Yes\", \"No\"]",
+        "clobTokenIds": "[\"10020001\", \"10020002\"]",
+        "active": true,
+        "closed": false,
+        "negRisk": true
+      }
+    ]
+  },
+  {
+    "id": "101",
+    "title": "Will it rain in NYC on 2027-07-04?",
+    "slug": "rain-nyc-20270704",
+    "startDate": "2027-06-01T00:00:00Z",
+    "endDate": "2027-07-04T23:59:00Z",
+    "active": true,
+    "closed": false,
+    "markets": [
+      {
+        "id": "1010",
+        "question": "Rain in NYC on 2027-07-04?",
+        "conditionId": "0xcond1010",
+        "slug": "rain-nyc",
+        "description": "Resolves per NWS Central Park observation.",
+        "resolutionSource": "NWS",
+        "startDate": "2027-06-01T00:00:00Z",
+        "endDate": "2027-07-04T23:59:00Z",
+        "createdAt": "2027-06-01T00:00:00Z",
+        "updatedAt": "2027-06-15T00:00:00Z",
+        "outcomes": "[\"Yes\", \"No\"]",
+        "clobTokenIds": "[\"10100001\", \"10100002\"]",
+        "active": true,
+        "closed": false,
+        "negRisk": false
+      }
+    ]
+  }
+]

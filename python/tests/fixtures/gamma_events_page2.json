@@ -1,0 +1,56 @@
+[
+  {
+    "id": "102",
+    "title": "Fed rate decision March 2027",
+    "slug": "fed-rate-march-2027",
+    "startDate": "2027-02-01T00:00:00Z",
+    "endDate": "2027-03-18T18:00:00Z",
+    "active": true,
+    "closed": false,
+    "category": "Economics",
+    "markets": [
+      {
+        "id": "1020",
+        "question": "Will the Fed cut rates in March 2027?",
+        "conditionId": "0xcond1020",
+        "slug": "fed-cut-march-2027",
+        "description": "Resolves YES on a target-range cut at the March 2027 FOMC.",
+        "resolutionSource": "Federal Reserve",
+        "startDate": "2027-02-01T00:00:00Z",
+        "endDate": "2027-03-18T18:00:00Z",
+        "createdAt": "2027-02-01T00:00:00Z",
+        "updatedAt": "2027-02-20T00:00:00Z",
+        "outcomes": "[\"Yes\", \"No\"]",
+        "clobTokenIds": "[\"10200001\", \"10200002\"]",
+        "active": true,
+        "closed": false,
+        "negRisk": false
+      }
+    ]
+  },
+  {
+    "id": "103",
+    "startDate": "2027-01-01T00:00:00Z",
+    "markets": []
+  },
+  {
+    "id": "104",
+    "title": "Event with an unusable market (no conditionId)",
+    "slug": "bad-market-evt",
+    "startDate": "2027-01-01T00:00:00Z",
+    "endDate": "2027-12-31T00:00:00Z",
+    "active": true,
+    "closed": false,
+    "markets": [
+      {
+        "id": "1040",
+        "question": "Market with no conditionId — must be dropped",
+        "slug": "no-cond",
+        "outcomes": "[\"Yes\", \"No\"]",
+        "clobTokenIds": "[\"10400001\", \"10400002\"]",
+        "active": true,
+        "closed": false
+      }
+    ]
+  }
+]

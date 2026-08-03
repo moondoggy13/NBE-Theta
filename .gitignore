@@ -49,3 +49,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Python worker raw-response archive (local FS)
+/python/data/
