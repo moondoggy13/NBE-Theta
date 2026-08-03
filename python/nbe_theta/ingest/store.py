@@ -367,13 +367,25 @@ class PostgresStore(Store):
     def replace_outcomes(self, venue_market_id: str, outcomes: list[ParsedOutcome]) -> None:
         with self._cur() as cur:
             for o in outcomes:
+                # coalesce on resolution_price: a later sweep of a market
+                # that has since gone inactive must never blank out a
+                # settlement we already captured.
                 cur.execute(
                     "insert into outcomes (venue, venue_market_id, outcome_index, "
-                    "outcome_name, outcome_token_id) values (%s,%s,%s,%s,%s) "
+                    "outcome_name, outcome_token_id, resolution_price) values (%s,%s,%s,%s,%s,%s) "
                     "on conflict (venue, venue_market_id, outcome_index) do update set "
                     "outcome_name=excluded.outcome_name, "
-                    "outcome_token_id=excluded.outcome_token_id",
-                    (VENUE, venue_market_id, o.outcome_index, o.outcome_name, o.outcome_token_id),
+                    "outcome_token_id=excluded.outcome_token_id, "
+                    "resolution_price=coalesce(excluded.resolution_price, "
+                    "  outcomes.resolution_price)",
+                    (
+                        VENUE,
+                        venue_market_id,
+                        o.outcome_index,
+                        o.outcome_name,
+                        o.outcome_token_id,
+                        o.resolution_price,
+                    ),
                 )
 
     def current_rule_hash(self, venue_market_id: str) -> str | None:

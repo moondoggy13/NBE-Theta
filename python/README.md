@@ -9,8 +9,8 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 | Command | Status | What it does |
 |---|---|---|
 | `theta-registry` | PR 3 | Sweep the Gamma API → normalize markets/events/outcomes → version resolution rules → archive raw pages. |
-| `theta-wallet-backfill` | **PR 4 (this)** | `seed`: discover candidates (leaderboards, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
-| `theta-score-wallets` | later | Wallet skill scoring. |
+| `theta-wallet-backfill` | PR 4 | `seed`: discover candidates (leaderboards, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
+| `theta-score-wallets` | **PR 5 (this)** | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
 | `theta-signal-generator` | later | Emit typed signal envelopes. |
 | … | later | ledger, graph, backtest, chain-enricher. |
 
@@ -76,6 +76,38 @@ window a no-op rather than a duplicate — that is what makes a killed
 backfill safe to restart.
 
 `DATA_API_MIN_INTERVAL_S` (default 0.2s) throttles calls per source.
+
+## Run the scorer (the alpha gate)
+
+```
+uv run theta-score-wallets score --as-of 2027-06-01T00:00:00Z
+uv run theta-score-wallets walkforward --start 2027-01-01T00:00:00Z \
+                                       --end   2027-06-01T00:00:00Z
+```
+
+`walkforward` prints the headline number: **lift** = the mean forward
+edge of the wallets we selected, minus the same for the whole universe.
+A non-positive lift means selection adds nothing over trading everyone,
+and per the plan that is a **stop** — replan before investing in the
+chain indexer or the execution stack.
+
+### What the scoring layer refuses to do
+
+These are deliberate, and each is enforced by a test:
+
+- **Never treats hit rate as skill.** Buying a 0.90 favorite and winning
+  is not edge. The primary metric is `payoff − entry price − fees`.
+- **Never scores an episode before its market settles**, even one the
+  wallet traded out of months earlier — its payoff was not knowable, so
+  including it would import a future outcome into a past score.
+- **Never bootstraps below 3 event clusters.** One cluster resamples to
+  itself, giving a zero-width interval that reads as infinite certainty.
+  Too few blocks returns *no* interval, which fails closed all the way
+  to "cannot be Tier A".
+- **Never imputes a missing settlement.** Unresolved outcomes are
+  dropped from scoring, not filled with 0.5 or a last price.
+- **Never mints Tier A without an out-of-sample window.** Tier A is the
+  only tier the executor may act on.
 
 ## Contracts
 
