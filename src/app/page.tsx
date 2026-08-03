@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { RetroDesktop } from "@/components/RetroDesktop";
 
 export default function Home() {
-  redirect("/dashboard");
+  return <RetroDesktop />;
 }
