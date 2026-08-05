@@ -3,11 +3,9 @@
 import {
   Activity,
   ArrowDownToLine,
-  BarChart3,
   ChevronRight,
   CircleHelp,
   Copy,
-  Crosshair,
   Crown,
   Eye,
   Gauge,
@@ -15,12 +13,10 @@ import {
   Play,
   Plus,
   Radar,
-  Settings2,
   ShieldCheck,
   SlidersHorizontal,
   WalletCards,
   X,
-  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";

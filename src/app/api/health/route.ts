@@ -16,8 +16,16 @@ export async function GET() {
     deps.supabase = "not_configured";
   }
 
-  deps.coinbase_mode = process.env.COINBASE_MODE ?? "paper";
-  deps.live_gated = process.env.COINBASE_LIVE === "true" && process.env.CONFIRM_LIVE === "YES" ? "true" : "false";
+  // Execution posture. The three-flag live gate is Polymarket-specific;
+  // all three must be set for the CLOB adapter to instantiate at all
+  // (see AGENTS.md). Absent any of them the system is paper-only.
+  deps.execution_provider = process.env.EXECUTION_PROVIDER ?? "mock";
+  deps.live_gated =
+    process.env.EXECUTION_PROVIDER === "polymarket-clob" &&
+    process.env.POLYMARKET_LIVE === "true" &&
+    process.env.CONFIRM_LIVE === "YES"
+      ? "true"
+      : "false";
 
   return NextResponse.json({
     ok: true,

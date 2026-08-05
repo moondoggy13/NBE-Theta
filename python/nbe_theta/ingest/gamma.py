@@ -23,6 +23,7 @@ import json
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from nbe_theta.common.http import Fetcher
@@ -39,6 +40,11 @@ class ParsedOutcome:
     outcome_index: int
     outcome_name: str
     outcome_token_id: str
+    # Settled payoff (0 or 1), captured ONLY for resolved markets. For an
+    # active market Gamma's `outcomePrices` is the current mid, which is
+    # not a settlement — recording it as one would corrupt every skill
+    # metric downstream, so it stays None until the market resolves.
+    resolution_price: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -128,7 +134,7 @@ def _decode_str_array(v: Any) -> list[str]:
     return []
 
 
-def parse_outcomes(raw_market: dict[str, Any]) -> list[ParsedOutcome]:
+def parse_outcomes(raw_market: dict[str, Any], resolved: bool = False) -> list[ParsedOutcome]:
     """Zip outcome names with clob token ids into outcome rows.
 
     If the two arrays disagree in length (or token ids are absent), we
@@ -138,6 +144,7 @@ def parse_outcomes(raw_market: dict[str, Any]) -> list[ParsedOutcome]:
 
     names = _decode_str_array(raw_market.get("outcomes"))
     token_ids = _decode_str_array(raw_market.get("clobTokenIds"))
+    prices = _decode_str_array(raw_market.get("outcomePrices")) if resolved else []
     out: list[ParsedOutcome] = []
     for i, name in enumerate(names):
         if i >= len(token_ids):
@@ -145,7 +152,26 @@ def parse_outcomes(raw_market: dict[str, Any]) -> list[ParsedOutcome]:
         token = token_ids[i]
         if not token:
             continue
-        out.append(ParsedOutcome(outcome_index=i, outcome_name=name, outcome_token_id=token))
+        price: Decimal | None = None
+        if i < len(prices):
+            candidate: Decimal | None
+            try:
+                candidate = Decimal(prices[i])
+            except (InvalidOperation, ValueError):
+                candidate = None
+            # A settled binary outcome pays 0 or 1. Anything outside
+            # [0,1] is not a settlement we understand — drop it rather
+            # than persist a number the scorer would trust.
+            if candidate is not None and Decimal("0") <= candidate <= Decimal("1"):
+                price = candidate
+        out.append(
+            ParsedOutcome(
+                outcome_index=i,
+                outcome_name=name,
+                outcome_token_id=token,
+                resolution_price=price,
+            )
+        )
     return out
 
 
@@ -190,7 +216,7 @@ def parse_market(raw: dict[str, Any], venue_event_id: str) -> ParsedMarket | Non
         resolved_at=_parse_dt(raw.get("updatedAt")) if resolved else None,
         resolution_source=(raw.get("resolutionSource") or None),
         description=(raw.get("description") or None),
-        outcomes=parse_outcomes(raw),
+        outcomes=parse_outcomes(raw, resolved=resolved),
     )
 
 

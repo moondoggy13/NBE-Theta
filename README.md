@@ -1,136 +1,110 @@
 # NBE-Theta — Polymarket Quant Copy-Trading Platform
 
-Systematic copy trading of top Polymarket traders. Rank on-chain leaders by risk-adjusted edge, mirror their positions through a quant filter, and size every follow with hard risk controls — all observable from a real-time HUD dashboard.
+Systematic copy trading of skilled Polymarket traders. Discover wallets,
+measure their forecasting edge against the prices they actually paid,
+and — only after that edge survives out-of-sample validation — mirror it
+through an independently risk-gated executor.
 
-> **Status — reorientation in progress.** The mission is Polymarket quant copy trading. The engine, dashboard, worker, and research sidecar you see here were built for a 24/7 BTC tick-stream strategy on Coinbase Advanced Trade, and **that BTC path is what actually runs today.** The Polymarket leader-ranking, position-mirroring, and CLOB execution layers are being built on top of this same infrastructure. Sections below are tagged **[live]** for what works now and **[building]** for what's incoming, so nothing here overstates what ships. Old BTC/Coinbase commands remain until the Polymarket execution path replaces them.
+> **Status — research/paper only. No live trading.** The Intelligence
+> and Signal layers are built and tested; the Execution layer is not
+> written yet. The alpha hypothesis has **not** been validated against
+> real data (see "The alpha gate" below), and live CLOB execution stays
+> off behind a three-flag gate until it is.
 
-## What we're building
+The pre-pivot BTC/Coinbase system has been **deleted** from this
+repository. It survives only behind the git tag `btc-v1-final`. See
+`docs/adr/0001-polymarket-pivot.md`.
 
-- **Leader discovery & tracking** — candidate seeding from leaderboards/holders, resumable trade-history backfill, live position + activity tracking for a curated watchlist (`theta-wallet-backfill`, `theta-live-monitor`). _[live]_
-- **Leader ranking** — statistically-validated wallet scoring against contemporaneous executable prices (FDR-controlled, walk-forward). _[building — a leaderboard-PnL prior tiers wallets today]_
-- **Copy filter** — don't blindly mirror. Pass every candidate follow through a quant layer (regime, sizing, correlation, staleness) before it becomes an order. _[building]_
-- **Execution** — place and manage follows on the Polymarket CLOB with the same paper/live safety gating the BTC engine already enforces. _[building]_
-- **Risk-first sizing** — fractional-Kelly / vol-targeted position sizing, per-trade risk caps, and an automatic drawdown kill switch. _[live — reusable as-is]_
-- **Observability** — real-time dashboard plus the **Smart Money cockpit**: leader roster, conviction board (per-market smart-money consensus with entry-vs-current price rails), and live tape. _[live]_
-- **Research** — deterministic backtests and parameter sweeps offline before anything touches capital. _[live for the BTC engine]_
+## Architecture — three layers
 
-## Stack
+| Layer | Where | Status |
+|---|---|---|
+| **Intelligence** — market registry, wallet discovery, trade history, live position + leaderboard monitoring, (later) chain enrichment | `python/nbe_theta/{ingest,ledger}` | built |
+| **Signal** — position reconstruction, skill scoring, significance, tiering, walk-forward | `python/nbe_theta/{analytics,backtest}` | built |
+| **Execution** — durable intent outbox, CLOB adapter, portfolio risk, reconciliation | `apps/executor` | **not built** (PR 8) |
 
-- **Next.js 16** (App Router, Turbopack) — HUD dashboard at `http://localhost:4200` _[live]_
-- **Node worker** (`worker/`) — long-lived loop: feed → ring-buffer state → strategies → ensemble → risk → execution _[live, BTC feed today]_
-- **Python sidecar** (`python/`) — offline backtesting, parameter sweeps, research _[live]_
-- **Supabase** (Postgres + Realtime) — orders, fills, positions, signals, backtest runs, logs _[live]_
-- **Redis** — hot cache for latest price / book top / equity _[live]_
-- **Polymarket CLOB + Gamma APIs** — market data, leader activity, and order placement _[building]_
+Supporting: `packages/contracts` (Pydantic → JSON Schema → TypeScript,
+the single source of truth for durable payloads), `supabase/migrations`
+(additive-only), and a Next.js dashboard whose **Smart Money** cockpit
+shows the leader roster, a conviction board plotting every tracked entry
+against the current price, and the live tape.
 
-## Getting started
+The tiers on that cockpit come from a **leaderboard-PnL prior** today,
+not from the validated scorer. The statistical tiering described below
+only starts labelling wallets once the alpha gate has been run for real.
 
-```bash
-# 1. install node deps
-pnpm install
-
-# 2. copy and fill env
-cp .env.example .env.local
-
-# 3. apply schema (requires supabase CLI linked)
-supabase db push
-
-# 4. run dashboard + worker concurrently
-pnpm dev:all
-# ── dashboard: http://localhost:4200
-# ── worker:    headless (currently connects to the Coinbase WS feed)
-```
-
-### Commands
-
-| Command | What it does | Status |
-| --- | --- | --- |
-| `pnpm dev` | Next.js dashboard on **:4200** | live |
-| `pnpm dev:worker` | Worker loop with hot reload | live |
-| `pnpm paper` | Worker in paper mode (real feed + mock broker, no real orders) | live |
-| `pnpm backtest -- --strategy mean-reversion-bb --from 2024-01-01 --to 2024-12-31` | JS backtest | live |
-| `pnpm fetch-history -- --symbol BTC-USD --interval 1m --from 2024-01-01` | Pull historical candles | live (BTC) |
-| `pnpm test` | Vitest unit tests (indicators, strategies, risk, execution) | live |
-| `cd python && uv run backtest --strategy mean_reversion_bb --sweep sweeps/bb.yaml` | Python backtest + parameter sweep | live |
-
-## Trading safety
-
-The worker is **paper by default** — every order routes to the mock broker unless you explicitly opt into live execution. Live orders require **both** gates to agree:
+## Commands
 
 ```bash
-COINBASE_MODE=live
-COINBASE_LIVE=true
-CONFIRM_LIVE=YES
+pnpm install                  # node deps
+cd python && uv sync --extra dev   # python worker deps
+
+# Intelligence
+uv run theta-registry run              # sweep Gamma → market registry
+uv run theta-wallet-backfill seed      # leaderboards/holders → candidates
+uv run theta-wallet-backfill run       # backfill wallet trade history
+uv run theta-live-monitor run          # steady state: watchlist → positions
+                                       #   → leaderboard → heartbeat
+uv run theta-live-monitor watch 0x…    # add one wallet to the watchlist
+
+# Signal
+uv run theta-score-wallets score --as-of 2027-06-01T00:00:00Z
+uv run theta-score-wallets walkforward --start ... --end ...
+
+# Infra
+docker compose up -d db       # local Postgres (supabase/postgres image)
+pnpm migrate up               # apply migrations from zero
+pnpm dev                      # dashboard on :4200
 ```
 
-Missing any gate routes every order to the mock broker. The dashboard's Settings tab has a second, independent `autonomousExecution` toggle that must also be on. The same dual-gate discipline carries over to the Polymarket execution path as it lands.
+## The alpha gate
 
-Risk defaults (preset: `Aggressive`, see `src/lib/risk/config.ts`):
-
-- $25,000 starting equity
-- 2% risk per trade
-- 10% daily drawdown → automatic kill switch
-
-Day boundaries use **UTC**.
-
-## Architecture
+`theta-score-wallets walkforward` is the decision point the whole plan
+is organized around. It scores wallets using only information available
+at each historical date, then measures what those wallets actually did
+next, and reports:
 
 ```
-┌──────────────────────────┐       ┌────────────────────────┐
-│ Next.js dashboard :4200  │       │ Python sidecar         │
-│ Supabase Realtime        │       │  (offline)             │
-│ Redis reads              │       │  backtests, sweeps,    │
-└────────────┬─────────────┘       │  research              │
-             │                     └───────────┬────────────┘
-             ▼                                 │
-   ┌─────────────────────┐                     │
-   │ Supabase + Redis    │◀────────────────────┘
-   └─────────┬───────────┘
-             │
-             ▼
-   ┌─────────────────────────────────────────────┐
-   │ worker/  (Node, long-lived)                 │
-   │  feed → ring-buffers → strategies →         │
-   │  ensemble → risk → execution → broker       │
-   │                                             │
-   │  feed:   Coinbase WS  [live]                │
-   │          Polymarket leader stream [building]│
-   │  broker: Coinbase Advanced / mock [live]    │
-   │          Polymarket CLOB [building]         │
-   └─────────────────────────────────────────────┘
+lift (selected − universe baseline)
 ```
 
-The worker pipeline (feed → state → signals → risk → execution) is intentionally source- and venue-agnostic. Reorienting to Polymarket means swapping the **feed** (candles → leader activity) and the **broker** (Coinbase → CLOB) while the risk, sizing, kill-switch, ensemble, and observability layers stay put.
+**A non-positive lift means wallet selection adds nothing over trading
+everyone, and that is a stop** — replan before investing in the chain
+indexer (PR 7) or the execution stack (PR 8). Building this measurement
+*before* the expensive infrastructure is the point.
 
-## Layout
+## What the scoring layer refuses to do
 
-```
-src/
-├── app/                    Next.js dashboard + API routes
-├── components/dashboard/   Glass HUD (Overview, Positions, Signals, Risk, Settings)
-├── lib/
-│   ├── signals/            Indicators, strategies, ensemble, master, ring-buffer
-│   ├── regime/             Regime classifier + Gaussian HMM
-│   ├── risk/               Config, sizer, kill-switch, vol-targeting, fractional-Kelly
-│   ├── broker/             BrokerClient interface + Coinbase Advanced + mock
-│   ├── feed/               Coinbase WS + historical replay
-│   ├── backtest/           Deterministic JS replay + metrics
-│   ├── redis/              Hot-cache client
-│   └── supabase/           Clients
-worker/                     Live worker loop (feed, engine, execution, Supabase sink)
-python/                     Offline backtesting + research (uv)
-scripts/                    fetch-history, backtest, preflight CLIs
-supabase/migrations/        SQL schema
-ONCHAIN_THETA_AGENT/        Coinbase AgentKit MCP server (on-chain wallet actions)
-```
+Each of these is enforced by a test, and each guards a specific way the
+pipeline would otherwise manufacture false alpha:
 
-## Roadmap to Polymarket copy trading
+- **Hit rate is never skill.** Buying a 0.90 favorite and winning is not
+  edge. The primary metric is `payoff − entry price − fees`.
+- **Many fills are one decision.** Episodes, not fills, are the unit of
+  observation.
+- **Correlated markets are not independent evidence.** The bootstrap
+  resamples whole event clusters, and refuses below three of them.
+- **An episode is unscoreable until its market settles** — even one the
+  wallet exited months earlier.
+- **Unresolved outcomes are dropped, never imputed.**
+- **Tier A requires an out-of-sample window.** It is the only tier the
+  executor may ever act on.
 
-1. **Data** — Polymarket Gamma/CLOB clients for markets, prices, and leader trade history.
-2. **Leaders** — wallet discovery + risk-adjusted ranking, persisted to Supabase.
-3. **Feed** — replace the Coinbase candle feed with a leader-activity stream into the worker.
-4. **Copy filter** — quant gate (regime, correlation, staleness, sizing) between a leader's fill and our follow.
-5. **Execution** — CLOB order placement behind the existing dual-gate paper/live safety.
-6. **Dashboard** — leaders board, per-leader attribution, and follow ledger in the HUD.
+## Safety
 
-Steps 1–5 build on the risk, sizing, and observability layers that already ship today.
+- Live execution requires all three of `EXECUTION_PROVIDER=polymarket-clob`,
+  `POLYMARKET_LIVE=true`, `CONFIRM_LIVE=YES`. CI never sets any of them.
+- No private key in the web process or in CI.
+- Raw wallet-intelligence tables are service-role only — never exposed
+  through anonymous RLS.
+- Control routes (`/api/kill-switch`, `/api/watchlist`) are bearer-gated
+  and write an `operator_actions` audit row.
+- See `AGENTS.md` for the full development contract.
+
+## Docs
+
+- `docs/adr/0001-polymarket-pivot.md` — why the pivot, and the rollout order
+- `AGENTS.md` — development contract (boundaries, migrations, tests, don'ts)
+- `CLAUDE.md` — repo navigation + what never to reintroduce
+- `python/README.md` — worker commands and layout
+- `packages/contracts/README.md` — contract generation

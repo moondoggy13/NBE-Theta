@@ -25,6 +25,7 @@ dev = [
 [project.scripts]
 theta-registry = "nbe_theta.ingest.cli:app"
 theta-wallet-backfill = "nbe_theta.ingest.wallet_cli:app"
+theta-score-wallets = "nbe_theta.analytics.cli:app"
 theta-live-monitor = "nbe_theta.ingest.monitor_cli:app"
 
 [build-system]
@@ -52,6 +53,7 @@ select = ["E", "F", "W", "I", "UP", "B"]
 # framework's idiom, so B008 doesn't apply to the command modules.
 "nbe_theta/ingest/cli.py" = ["B008"]
 "nbe_theta/ingest/wallet_cli.py" = ["B008"]
+"nbe_theta/analytics/cli.py" = ["B008"]
 "nbe_theta/ingest/monitor_cli.py" = ["B008"]
 
 [tool.mypy]
