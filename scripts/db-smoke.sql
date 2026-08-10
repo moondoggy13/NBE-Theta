@@ -40,7 +40,11 @@ declare
     'execution_intents', 'venue_orders', 'venue_order_events', 'venue_fills',
     'venue_positions', 'account_snapshots', 'risk_snapshots',
     'operator_actions', 'process_heartbeats', 'reconciliation_runs',
-    'reconciliation_breaks'
+    'reconciliation_breaks',
+    -- 011
+    'wallet_positions', 'leaderboard_snapshots', 'wallet_watchlist',
+    -- 014
+    'market_quotes', 'market_quote_latest'
   ];
   rls boolean;
 begin
@@ -53,7 +57,7 @@ begin
       raise exception 'RLS not enabled on %', t;
     end if;
   end loop;
-  raise notice 'ok: 29 tables exist with RLS enabled';
+  raise notice 'ok: % tables exist with RLS enabled', array_length(all_new, 1);
 end $$;
 
 -- 3: anon policy presence matches intent.
@@ -66,13 +70,20 @@ declare
     'signals', 'wallet_tier_snapshots', 'wallet_anomaly_events',
     'venue_orders', 'venue_fills', 'venue_positions', 'account_snapshots',
     'risk_snapshots', 'reconciliation_runs', 'reconciliation_breaks',
-    'process_heartbeats', 'operator_actions'
+    'process_heartbeats', 'operator_actions',
+    -- 014: public venue data, same class as markets/outcomes.
+    'market_quote_latest'
   ];
   deny_list text[] := array[
     'ingest_cursors', 'wallets', 'wallet_candidates', 'wallet_relationships',
     'venue_trades', 'wallet_ledger_entries', 'wallet_episodes',
     'wallet_score_snapshots', 'wallet_behavior_snapshots',
-    'execution_intents', 'venue_order_events'
+    'execution_intents', 'venue_order_events',
+    -- 011 (PR 4b): raw intel + operator control plane.
+    'wallet_positions', 'leaderboard_snapshots', 'wallet_watchlist',
+    -- 014: not secret, but an unbounded time series — a browser-reachable
+    -- scan of it is a DoS surface, so it stays service-role.
+    'market_quotes'
   ];
   n int;
 begin
@@ -110,11 +121,15 @@ declare
   must_have text[] := array[
     'markets', 'signals', 'wallet_tier_snapshots', 'wallet_anomaly_events',
     'venue_orders', 'venue_fills', 'venue_positions',
-    'reconciliation_breaks', 'process_heartbeats'
+    'reconciliation_breaks', 'process_heartbeats',
+    'market_quote_latest'
   ];
   must_not text[] := array[
     'wallets', 'venue_trades', 'wallet_ledger_entries',
-    'wallet_score_snapshots', 'execution_intents'
+    'wallet_score_snapshots', 'execution_intents',
+    -- Unbounded history: streaming it would replicate every tick to
+    -- every browser.
+    'market_quotes'
   ];
   n int;
 begin

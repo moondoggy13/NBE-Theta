@@ -132,3 +132,63 @@ def holder_rows() -> list[dict[str, Any]]:
 @pytest.fixture
 def position_rows() -> list[dict[str, Any]]:
     return load_fixture("dataapi_positions.json")
+
+
+def load_json(name: str) -> Any:
+    """Load a fixture of any JSON shape (the list-typed `load_fixture`
+    above predates the CLOB fixtures, which are objects)."""
+
+    return json.loads((FIXTURES / name).read_text())
+
+
+class RecordedClobFetcher:
+    """Serves recorded CLOB REST responses by path.
+
+    ``books`` maps token id → a ``/book`` payload. A token absent from
+    the map raises, which is how the resync tests exercise "one token's
+    repair fails and must not abort the others".
+    """
+
+    def __init__(
+        self,
+        books: dict[str, Any] | None = None,
+        history: Any = None,
+        midpoint: Any = None,
+        fail_tokens: set[str] | None = None,
+    ) -> None:
+        self.books = books or {}
+        self.history = history
+        self.midpoint = midpoint
+        self.fail_tokens = fail_tokens or set()
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def get_page(self, path: str, params: dict[str, Any]) -> tuple[Any, bytes]:
+        self.calls.append((path, dict(params)))
+        if path == "/book":
+            token = str(params["token_id"])
+            if token in self.fail_tokens:
+                raise RuntimeError(f"boom: venue 500 on /book {token}")
+            payload = self.books.get(token)
+            if payload is None:
+                raise AssertionError(f"no recorded book for {token}")
+            return payload, json.dumps(payload).encode("utf-8")
+        if path == "/prices-history":
+            return self.history, json.dumps(self.history).encode("utf-8")
+        if path == "/midpoint":
+            return self.midpoint, json.dumps(self.midpoint).encode("utf-8")
+        raise AssertionError(f"unexpected path {path}")
+
+
+@pytest.fixture
+def clob_book() -> Any:
+    return load_json("clob_book_t1.json")
+
+
+@pytest.fixture
+def clob_history() -> Any:
+    return load_json("clob_prices_history.json")
+
+
+@pytest.fixture
+def market_stream_path() -> Path:
+    return FIXTURES / "clob_market_stream.jsonl"

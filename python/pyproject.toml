@@ -12,6 +12,10 @@ dependencies = [
     "pydantic-settings>=2.3",
     "structlog>=24.1",
     "typer>=0.12",
+    # Market-data websocket transport. Used only by
+    # WebsocketMarketStream, behind the MarketStream seam, and
+    # imported lazily so the book/parsing logic tests without it.
+    "websockets>=13",
     "nbe-theta-contracts",
 ]
 
@@ -27,6 +31,7 @@ theta-registry = "nbe_theta.ingest.cli:app"
 theta-wallet-backfill = "nbe_theta.ingest.wallet_cli:app"
 theta-score-wallets = "nbe_theta.analytics.cli:app"
 theta-live-monitor = "nbe_theta.ingest.monitor_cli:app"
+theta-market-data = "nbe_theta.ingest.market_cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -55,6 +60,7 @@ select = ["E", "F", "W", "I", "UP", "B"]
 "nbe_theta/ingest/wallet_cli.py" = ["B008"]
 "nbe_theta/analytics/cli.py" = ["B008"]
 "nbe_theta/ingest/monitor_cli.py" = ["B008"]
+"nbe_theta/ingest/market_cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -62,5 +68,5 @@ strict = true
 files = ["nbe_theta"]
 
 [[tool.mypy.overrides]]
-module = ["structlog.*"]
+module = ["structlog.*", "websockets.*"]
 ignore_missing_imports = true

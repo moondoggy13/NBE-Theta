@@ -11,7 +11,8 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 | `theta-registry` | PR 3 | Sweep the Gamma API → normalize markets/events/outcomes → version resolution rules → archive raw pages. |
 | `theta-wallet-backfill` | PR 4 | `seed`: discover candidates (leaderboards, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
 | `theta-live-monitor` | PR 4b | Always-on loop: watchlist trade sync, position snapshots, leaderboard sweeps, heartbeats. |
-| `theta-score-wallets` | **PR 5 (this)** | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
+| `theta-score-wallets` | PR 5 | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
+| `theta-market-data` | **PR 6 (this)** | `run`: stream the CLOB book for watchlisted markets into `market_quotes`, REST-resyncing after any gap. `backfill`: fill quote history from `/prices-history`. `snapshot`: print one book. |
 | `theta-signal-generator` | later | Emit typed signal envelopes. |
 | … | later | ledger, graph, backtest, chain-enricher. |
 
@@ -31,6 +32,13 @@ nbe_theta/
     ├── backfill.py     per-wallet trade-history backfill
     ├── ratelimit.py    per-source min-interval budget
     ├── wallet_cli.py   theta-wallet-backfill entrypoint
+    ├── clob.py         CLOB REST client + order-book parsing
+    ├── marketstream.py market WS seam + book state machine (sync flag)
+    ├── collector.py    stream → books → quotes, with REST gap repair
+    ├── quote_store.py  quote persistence + historical price lookup
+    ├── tokens.py       which outcome tokens to subscribe to
+    ├── triggers.py     large-trade / rapid-move ALERTS (never signals)
+    ├── market_cli.py   theta-market-data entrypoint
     └── archive.py      raw-response archive (FS now, R2/S3 later)
 tests/              recorded-fixture replay tests (no live API)
 ```

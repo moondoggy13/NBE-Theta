@@ -100,6 +100,23 @@ services:
       LOG_LEVEL: info
       MONITOR_INTERVAL_S: "30"
 
+  # CLOB market-data collector: streams the order book for watchlisted
+  # markets into market_quotes, and REST-resyncs after any stream gap.
+  # This is what makes markouts and CLV computable. Same image again.
+  python-market-data:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: python/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["uv", "run", "theta-market-data", "run"]
+    environment:
+      DATABASE_URL: postgres://supabase_admin:postgres@db:5432/postgres
+      LOG_LEVEL: info
+      MARKET_CYCLE_S: "15"
+
   # TypeScript executor (holds the signer; talks to Polymarket).
   # Scaffold only. In production this container runs on a private host,
   # never behind a public inbound endpoint.
