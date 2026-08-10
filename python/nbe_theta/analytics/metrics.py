@@ -28,12 +28,22 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
+from nbe_theta.ingest.quote_store import QuoteLookup
 from nbe_theta.ledger.episodes import Episode
 
 ZERO = Decimal("0")
+
+# Markout horizons. Short enough that a move is plausibly attributable to
+# the wallet's own information rather than to everything that happened
+# afterwards.
+MARKOUT_HORIZONS: dict[str, timedelta] = {
+    "5m": timedelta(minutes=5),
+    "1h": timedelta(hours=1),
+    "24h": timedelta(hours=24),
+}
 
 
 @dataclass(frozen=True)
@@ -199,23 +209,92 @@ def hit_rate(scored: list[ScoredEpisode]) -> float | None:
 
 
 def markout(
-    scored: list[ScoredEpisode], prices_after: dict[str, Decimal], horizon_key: str
+    scored: list[ScoredEpisode],
+    quotes: QuoteLookup,
+    horizon: timedelta,
+    *,
+    as_of: datetime | None = None,
 ) -> float | None:
-    """Mean price move in the wallet's favor `horizon` after entry.
+    """Mean price move in the wallet's favor ``horizon`` after entry.
 
-    ``prices_after`` maps an episode identity to the mid at that horizon.
-    Episodes without a recorded forward price are skipped rather than
-    imputed — a missing markout is missing data, not zero edge.
+    Answers: did the market move toward this wallet's view shortly after
+    it traded? A wallet that is right *eventually* may just be patient; a
+    wallet the market agrees with within an hour is more likely to be
+    early rather than lucky.
+
+    Episodes with no recorded price at the horizon are skipped, never
+    imputed — a missing markout is missing data, and filling it with 0
+    would dilute a real edge toward zero while making a wallet with no
+    coverage look average instead of unmeasured.
+
+    ``as_of`` clamps the lookup so a scoring run at time T cannot consult
+    a quote observed after T, even for an episode whose horizon has since
+    elapsed. Without that clamp a walk-forward backtest would quietly
+    read the future.
+
+    This used to take ``dict[str, Decimal]`` keyed
+    ``condition:token:horizon``. That key could not distinguish two
+    episodes on the same token, so a wallet that re-entered a market got
+    one forward price for both — at least one of them measured from the
+    wrong entry time. Passing the lookup instead makes each episode ask
+    about its own ``opened_at``, so the collision is unrepresentable.
     """
 
     vals: list[float] = []
     for s in scored:
-        key = f"{s.episode.condition_id}:{s.episode.outcome_token_id}:{horizon_key}"
-        fwd = prices_after.get(key)
+        entry_at = s.episode.opened_at
+        fwd = quotes.price_at(s.episode.outcome_token_id, entry_at + horizon, as_of=as_of)
         if fwd is None:
             continue
         move = float(fwd - s.entry_price)
         # A short position profits from a fall.
+        vals.append(move if s.episode.direction == "BUY" else -move)
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def closing_line_value(
+    scored: list[ScoredEpisode],
+    quotes: QuoteLookup,
+    closes: dict[str, datetime],
+    *,
+    as_of: datetime | None = None,
+) -> float | None:
+    """Mean edge against the closing line.
+
+    The sports-betting measure, and the single most useful non-outcome
+    signal available: beating the closing price is evidence of skill that
+    does not depend on how the event happened to resolve. A wallet can
+    win a coin flip; it cannot repeatedly buy at 0.40 what the market
+    prices at 0.55 by the time it closes without knowing something.
+
+    Per episode: ``closing_price − entry_price``, signed by direction.
+
+    ``closes`` maps ``condition_id`` → market close time. An episode
+    whose market has no recorded close is skipped: CLV is undefined
+    before there is a closing line, and substituting "the last price we
+    happen to have" would silently measure something else.
+
+    Look-ahead: the closing price becomes knowable at close, which is at
+    or before settlement — and `ScoredEpisode` is already unscoreable
+    until settlement (see ``observable_at``). So CLV introduces no
+    observability earlier than the episode already had. The ``as_of``
+    clamp is still applied, because "the caller already filtered" is
+    exactly the assumption that produced the settlement leak in PR 5.
+    """
+
+    vals: list[float] = []
+    for s in scored:
+        closed_at = closes.get(s.episode.condition_id)
+        if closed_at is None:
+            continue
+        if as_of is not None and closed_at > as_of:
+            continue
+        close_px = quotes.price_at(s.episode.outcome_token_id, closed_at, as_of=as_of)
+        if close_px is None:
+            continue
+        move = float(close_px - s.entry_price)
         vals.append(move if s.episode.direction == "BUY" else -move)
     if not vals:
         return None

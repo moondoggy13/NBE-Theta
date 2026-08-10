@@ -19,7 +19,7 @@ repository. It survives only behind the git tag `btc-v1-final`. See
 
 | Layer | Where | Status |
 |---|---|---|
-| **Intelligence** — market registry, wallet discovery, trade history, live position + leaderboard monitoring, (later) chain enrichment | `python/nbe_theta/{ingest,ledger}` | built |
+| **Intelligence** — market registry, wallet discovery, trade history, live position + leaderboard monitoring, CLOB market data, (later) chain enrichment | `python/nbe_theta/{ingest,ledger}` | built |
 | **Signal** — position reconstruction, skill scoring, significance, tiering, walk-forward | `python/nbe_theta/{analytics,backtest}` | built |
 | **Execution** — durable intent outbox, CLOB adapter, portfolio risk, reconciliation | `apps/executor` | **not built** (PR 8) |
 
@@ -46,6 +46,9 @@ uv run theta-wallet-backfill run       # backfill wallet trade history
 uv run theta-live-monitor run          # steady state: watchlist → positions
                                        #   → leaderboard → heartbeat
 uv run theta-live-monitor watch 0x…    # add one wallet to the watchlist
+uv run theta-market-data run           # stream the CLOB book → market_quotes
+uv run theta-market-data backfill <tok> --condition-id 0x…
+                                       # fill quote history for a past market
 
 # Signal
 uv run theta-score-wallets score --as-of 2027-06-01T00:00:00Z

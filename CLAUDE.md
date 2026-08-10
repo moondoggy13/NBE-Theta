@@ -102,6 +102,28 @@ would otherwise manufacture false alpha:
   to itself → zero-width interval → infinite apparent certainty).
 - Unresolved outcomes are dropped, never imputed.
 - Tier A requires an out-of-sample window.
+- **A missing price is `None`, never `0.0`.** "Unmeasured" and "no edge"
+  are different claims; conflating them dilutes a real edge and makes
+  thin quote coverage look like mediocrity. `clv` and `markout_*` stay
+  SQL NULL when there is no price history.
+- **Every historical price lookup is clamped to `as_of`.** Markouts and
+  CLV read `market_quotes` through `QuoteLookup`, which takes an `as_of`
+  ceiling. Do not add a lookup that skips it because "the caller already
+  filtered" — that assumption is what produced the settlement leak.
+
+## Market data (PR 6) — the two things not to undo
+
+- **`BookState.synced` is load-bearing.** A delta feed is only
+  meaningful on top of a known-current snapshot. Anything that could
+  have lost a message (reconnect, malformed delta, crossed book) clears
+  the flag, and an unsynced book emits NO quotes until a REST snapshot
+  restores it. Going quiet is correct: a missing quote is visible in the
+  freshness metrics, a wrong one is invisible and poisons every markout
+  derived from it.
+- **Resync applies the FULL book, not the top of it.** Rebuilding from
+  best-bid/best-ask alone looks right until the venue deletes that
+  level, at which point the view falls through to whatever arrives next
+  instead of the real next-best price.
 
 ## Non-goals (do not scope-creep)
 
