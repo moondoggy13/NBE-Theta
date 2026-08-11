@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { ArcTanLoading } from "@/components/ArcTanLoading";
 
-type WindowId = "welcome" | "network" | "signals" | "research" | "automation" | "login" | "contact";
+type WindowId = "welcome" | "network" | "signals" | "research" | "automation" | "login" | "contact" | "arctan";
 type WindowState = Record<WindowId, { open: boolean; x: number; y: number }>;
 let sharedAudioContext: AudioContext | undefined;
 
@@ -14,6 +16,7 @@ const initialWindows: WindowState = {
   automation: { open: false, x: 192, y: 68 },
   login: { open: false, x: 470, y: 202 },
   contact: { open: false, x: 330, y: 248 },
+  arctan: { open: false, x: 415, y: 230 },
 };
 
 const iconData: Array<{ id: WindowId; icon: string; label: string }> = [
@@ -22,6 +25,7 @@ const iconData: Array<{ id: WindowId; icon: string; label: string }> = [
   { id: "research", icon: "note", label: "Research Notes" },
   { id: "automation", icon: "automation", label: "Automation" },
   { id: "contact", icon: "mail", label: "Contact NB&E" },
+  { id: "arctan", icon: "arctan", label: "arc(Tan)" },
 ];
 
 function playWindowTone(kind: "open" | "close") {
@@ -48,6 +52,9 @@ function playWindowTone(kind: "open" | "close") {
 }
 
 function PixelIcon({ type }: { type: string }) {
+  if (type === "arctan") {
+    return <span aria-hidden="true" className="retro-pixel-icon retro-icon-arctan"><Image src="/icons/arc-tan.jpg" alt="" width={51} height={51} /></span>;
+  }
   return <span aria-hidden="true" className={`retro-pixel-icon retro-icon-${type}`} />;
 }
 
@@ -94,6 +101,7 @@ export function RetroDesktop() {
   const [clock, setClock] = useState("--:-- --");
   const [activeWindow, setActiveWindow] = useState<WindowId>("welcome");
   const [loginMessage, setLoginMessage] = useState<string | null>(null);
+  const [arcTanLoading, setArcTanLoading] = useState(false);
   const clickSound = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -135,6 +143,12 @@ export function RetroDesktop() {
   const closeWindow = (id: WindowId) => {
     tone("close");
     setWindows((current) => ({ ...current, [id]: { ...current[id], open: false } }));
+  };
+  const launchArcTan = () => {
+    if (arcTanLoading) return;
+    tone("open");
+    setArcTanLoading(true);
+    window.setTimeout(() => window.location.assign("/arc-tan"), 5000);
   };
   const focusWindow = (id: WindowId) => setActiveWindow(id);
   const beginDrag = (id: WindowId, event: ReactPointerEvent<HTMLDivElement>) => {
@@ -261,11 +275,26 @@ export function RetroDesktop() {
         <a className="retro-action-button retro-email-button" href="mailto:automation@nbetechnologies.com">Compose message</a>
       </RetroWindow>
 
+      <RetroWindow id="arctan" title="arc(Tan) — Launch Sequence" state={windows.arctan} onClose={() => closeWindow("arctan")} onFocus={() => focusWindow("arctan")} onDrag={(event) => beginDrag("arctan", event)}>
+        <div className="retro-arctan-prompt">
+          <span className="retro-arctan-mark" aria-hidden="true" />
+          <div>
+            <p className="retro-window-kicker">NB&E EXPERIMENTAL APPLICATION</p>
+            <h2>Enter the full arc(Tan) experience?</h2>
+            <p>arc(Tan) is a separate peptide interface. The next window opens a different environment.</p>
+          </div>
+        </div>
+        <div className="retro-confirm-actions">
+          <button type="button" className="retro-action-button" onClick={() => closeWindow("arctan")}>Exit</button>
+          <button type="button" className="retro-action-button retro-arctan-launch" onClick={launchArcTan}>Go to arc(Tan)</button>
+        </div>
+      </RetroWindow>
+
       {startOpen && (
         <aside className="retro-start-menu" onClick={(event) => event.stopPropagation()} aria-label="Start menu">
           <div className="retro-start-side">NBEOS <b>2026</b></div>
           <div className="retro-start-options">
-            {iconData.slice(0, 5).map(({ id, icon, label }) => <button type="button" key={id} onClick={() => openWindow(id)}><PixelIcon type={icon} />{label}</button>)}
+            {iconData.map(({ id, icon, label }) => <button type="button" key={id} onClick={() => openWindow(id)}><PixelIcon type={icon} />{label}</button>)}
             <button type="button" onClick={() => openWindow("login")}><PixelIcon type="key" />Founder Login</button>
             <button type="button" onClick={() => setSoundOn((value) => !value)}><PixelIcon type="speaker" />Sound: {soundOn ? "On" : "Off"}</button>
           </div>
@@ -274,9 +303,10 @@ export function RetroDesktop() {
 
       <footer className="retro-taskbar" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="retro-start-button" onClick={() => setStartOpen((value) => !value)}><span className="retro-start-flag" />Start</button>
-        <div className="retro-task-list">{tasks.map((id) => <button type="button" className={activeWindow === id ? "retro-task-active" : ""} key={id} onClick={() => focusWindow(id)}>{id === "welcome" ? "NB&E Technologies" : id === "signals" ? "Signal Desk" : id === "login" ? "Founder Access" : `${id[0].toUpperCase()}${id.slice(1)}`}</button>)}</div>
+        <div className="retro-task-list">{tasks.map((id) => <button type="button" className={activeWindow === id ? "retro-task-active" : ""} key={id} onClick={() => focusWindow(id)}>{id === "welcome" ? "NB&E Technologies" : id === "signals" ? "Signal Desk" : id === "login" ? "Founder Access" : id === "arctan" ? "arc(Tan)" : `${id[0].toUpperCase()}${id.slice(1)}`}</button>)}</div>
         <div className="retro-tray"><span className="retro-tray-signal">◢</span><span>{clock}</span></div>
       </footer>
+      {arcTanLoading && <ArcTanLoading />}
     </main>
   );
 }
