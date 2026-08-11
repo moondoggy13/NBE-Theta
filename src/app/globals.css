@@ -221,7 +221,7 @@ html:has(.retro-desktop), body:has(.retro-desktop) { height: 100%; overflow: hid
 
 /* User-supplied desktop wallpaper */
 .retro-desktop {
-  background: linear-gradient(rgba(18, 74, 113, .05), rgba(18, 74, 113, .12)), url("/wallpapers/desert-coast.png") center / cover no-repeat;
+  background: linear-gradient(rgba(18, 74, 113, .05), rgba(18, 74, 113, .12)), url("/wallpapers/desert-coast.jpg") center / cover no-repeat;
 }
 .retro-wallpaper-copy { color: rgba(25, 59, 78, .28); text-shadow: 0 1px rgba(255,255,255,.35); }
 
