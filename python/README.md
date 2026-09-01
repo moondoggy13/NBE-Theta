@@ -13,8 +13,8 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 | `theta-live-monitor` | PR 4b | Always-on loop: watchlist trade sync, position snapshots, leaderboard sweeps, heartbeats. |
 | `theta-score-wallets` | PR 5 | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
 | `theta-market-data` | PR 6 | `run`: stream the CLOB book for watchlisted markets into `market_quotes`, REST-resyncing after any gap. `backfill`: fill quote history from `/prices-history`. `snapshot`: print one book. |
-| `theta-cohort` | **PR 7 (this)** | `classify-events`: sports / non-sports, fail-closed. `cluster`: group wallets that trade as one entity. `select-cohort`: apply eligibility vetoes, promote a bounded feeder set. `show`: the cohort and why. `budget`: polling arithmetic. |
-| `theta-signal-generator` | later | Emit typed signal envelopes. |
+| `theta-cohort` | PR 7 | `classify-events`: sports / non-sports, fail-closed. `cluster`: group wallets that trade as one entity. `select-cohort`: apply eligibility vetoes, promote a bounded feeder set. `show`: the cohort and why. `budget`: polling arithmetic. |
+| `theta-signals` | **PR 8 (this)** | `summary`: shadow-gate fill rate + rejection histogram. `policy`: active qualification and risk thresholds. |
 | … | later | ledger, graph, backtest, chain-enricher. |
 
 ## Layout
@@ -49,6 +49,15 @@ analytics/
     ├── cohort.py       eligibility vetoes + bounded feeder set
     ├── cohort_store.py selection-layer persistence
     └── cohort_cli.py   theta-cohort entrypoint
+signals/
+    ├── actions.py      source fills → one decision (dedupe-keyed)
+    ├── gates.py        qualification vetoes, each with its own reason
+    ├── sizing.py       risk engine: factors multiply, caps clamp
+    ├── lots.py         strategy lots, exit mirroring, settlement
+    ├── shadow.py       bounded FOK against the observed book
+    ├── pipeline.py     action → gates → sizing → shadow → lot
+    ├── store.py        signal-layer persistence
+    └── cli.py          theta-signals entrypoint
 tests/              recorded-fixture replay tests (no live API)
 ```
 
