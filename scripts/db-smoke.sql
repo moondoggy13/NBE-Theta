@@ -44,7 +44,11 @@ declare
     -- 011
     'wallet_positions', 'leaderboard_snapshots', 'wallet_watchlist',
     -- 014
-    'market_quotes', 'market_quote_latest'
+    'market_quotes', 'market_quote_latest',
+    -- 015
+    'event_classifications', 'wallet_copyability_snapshots',
+    'wallet_clusters', 'wallet_cluster_members', 'scoring_policies',
+    'wallet_cohort'
   ];
   rls boolean;
 begin
@@ -83,7 +87,11 @@ declare
     'wallet_positions', 'leaderboard_snapshots', 'wallet_watchlist',
     -- 014: not secret, but an unbounded time series — a browser-reachable
     -- scan of it is a DoS surface, so it stays service-role.
-    'market_quotes'
+    'market_quotes',
+    -- 015: alpha internals + the policy control plane.
+    'event_classifications', 'wallet_copyability_snapshots',
+    'wallet_clusters', 'wallet_cluster_members', 'scoring_policies',
+    'wallet_cohort'
   ];
   n int;
 begin

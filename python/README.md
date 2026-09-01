@@ -12,7 +12,8 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 | `theta-wallet-backfill` | PR 4 | `seed`: discover candidates (leaderboards, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
 | `theta-live-monitor` | PR 4b | Always-on loop: watchlist trade sync, position snapshots, leaderboard sweeps, heartbeats. |
 | `theta-score-wallets` | PR 5 | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
-| `theta-market-data` | **PR 6 (this)** | `run`: stream the CLOB book for watchlisted markets into `market_quotes`, REST-resyncing after any gap. `backfill`: fill quote history from `/prices-history`. `snapshot`: print one book. |
+| `theta-market-data` | PR 6 | `run`: stream the CLOB book for watchlisted markets into `market_quotes`, REST-resyncing after any gap. `backfill`: fill quote history from `/prices-history`. `snapshot`: print one book. |
+| `theta-cohort` | **PR 7 (this)** | `classify-events`: sports / non-sports, fail-closed. `cluster`: group wallets that trade as one entity. `select-cohort`: apply eligibility vetoes, promote a bounded feeder set. `show`: the cohort and why. `budget`: polling arithmetic. |
 | `theta-signal-generator` | later | Emit typed signal envelopes. |
 | … | later | ledger, graph, backtest, chain-enricher. |
 
@@ -39,7 +40,15 @@ nbe_theta/
     ├── tokens.py       which outcome tokens to subscribe to
     ├── triggers.py     large-trade / rapid-move ALERTS (never signals)
     ├── market_cli.py   theta-market-data entrypoint
+    ├── budget.py       polling-budget arithmetic (ADR-0002 §E)
     └── archive.py      raw-response archive (FS now, R2/S3 later)
+analytics/
+    ├── taxonomy.py     sports / non-sports, fail-closed
+    ├── copyability.py  could we actually have mirrored this wallet?
+    ├── clustering.py   wallets that trade as one entity
+    ├── cohort.py       eligibility vetoes + bounded feeder set
+    ├── cohort_store.py selection-layer persistence
+    └── cohort_cli.py   theta-cohort entrypoint
 tests/              recorded-fixture replay tests (no live API)
 ```
 
