@@ -78,8 +78,25 @@ lift (selected − universe baseline)
 
 **A non-positive lift means wallet selection adds nothing over trading
 everyone, and that is a stop.** It has still not been run against real
-data — every Polymarket host is unreachable from CI — so the whole stack
-below it remains an instrument awaiting its measurement.
+data: the build sandbox's egress proxy answers 403 to the CONNECT for
+every `*.polymarket.com` host, so the request never leaves. That is an
+allowlist, not an API change — the whole stack below remains an
+instrument awaiting its measurement.
+
+The gate reports a verdict, not just a number (ADR-0005):
+
+```
+  [PASS] sufficient_folds          6  (bar 3)
+  [PASS] sufficient_evidence     240  (bar 30)
+  [PASS] selection_is_selective  0.1  (bar 0.5)
+  [PASS] positive_lift        0.0903  (bar 0)
+lift 95% interval:    [0.081, 0.099]
+```
+
+`----` means a criterion could not be measured, and blocks exactly as a
+failure does. Lift carries an event-clustered bootstrap interval, and an
+interval spanning zero is called out — a lift of +0.004 from nine
+correlated episodes clears the stated bar and means nothing.
 
 The second, equally decisive number is the **qualified-signal fill rate**
 from `theta-signals summary`: copying is a latency race, and identifying
@@ -174,6 +191,8 @@ Also:
   three outcomes per criterion instead of two
 - `docs/adr/0004-operator-identity.md` — per-operator roles, and why a
   valid login is not authorisation
+- `docs/adr/0005-alpha-gate-verdict.md` — why the alpha gate needed an
+  interval, event clustering, and the ability to decline
 - `AGENTS.md` — development contract (boundaries, migrations, tests, don'ts)
 - `CLAUDE.md` — repo navigation + what never to reintroduce
 - `python/README.md` — worker commands and layout
