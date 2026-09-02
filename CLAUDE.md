@@ -157,6 +157,30 @@ Related invariants:
   stored `true` looks identical whether or not anyone read a legal
   opinion.
 
+## The alpha gate (PR 13) — same discipline as the shadow gate
+
+`python/nbe_theta/backtest/alpha_gate.py` judges the walk-forward run,
+and it follows ADR-0003's shape: named criteria, three outcomes each,
+`fail` > `insufficient_evidence` > `pass`.
+
+- **`_mean_edge` averages over EVENT CLUSTERS, not episodes.** Ten
+  outcome tokens on one election are one opinion resolving once.
+  Averaging episodes hands the most weight to whoever fragmented their
+  position most — market structure read as skill. `cluster_ids` lives
+  beside it so the interval and the point estimate always agree on what
+  a block is.
+- **Lift carries an event-clustered bootstrap interval**, reported but
+  not gated on. The interval holds the baseline fixed, which makes it
+  narrower than the truth — the optimistic direction, which is why a
+  result already spanning zero definitely does.
+- **`selection_is_selective` returns `insufficient_evidence`, never
+  `fail`.** A cohort too small to separate the top-N from the universe
+  has not disproved anything, and a false STOP costs as much as a false
+  go.
+- **Do not add synthetic fixtures that can produce a lift.** A number
+  from invented data is indistinguishable in the output from a real one.
+  The gate stays unrun until it can read real history.
+
 ## Operator identity (PR 12) — what must not regress
 
 `src/lib/auth.ts` is the auth boundary. Changing it needs an ADR, a

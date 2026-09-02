@@ -18,10 +18,12 @@ from nbe_theta.analytics.cli_helpers import parse_utc
 from nbe_theta.analytics.pipeline import load_and_build
 from nbe_theta.analytics.scorer import assign_tier, score_universe
 from nbe_theta.analytics.store import PostgresAnalyticsStore
+from nbe_theta.backtest.alpha_gate import evaluate as evaluate_alpha
 from nbe_theta.backtest.walkforward import attach_out_of_sample, run_walk_forward
 from nbe_theta.common.config import get_settings
 from nbe_theta.common.db import connect
 from nbe_theta.common.logging import configure_logging, get_logger
+from nbe_theta.signals.gate import FAIL, INSUFFICIENT, PASS
 
 app = typer.Typer(add_completion=False, help="Wallet skill scoring + walk-forward validation.")
 
@@ -113,19 +115,62 @@ def walkforward(
         lift=result.lift,
         mean_persistence=result.mean_persistence,
     )
+    verdict = evaluate_alpha(result)
+    mark = {PASS: "PASS", FAIL: "FAIL", INSUFFICIENT: "----"}
+
     typer.echo("")
     typer.echo("=== ALPHA GATE ===")
-    typer.echo(f"folds:                {len(result.folds)}")
+    typer.echo(f"policy:               {verdict.policy.version}")
+    typer.echo(f"verdict:              {verdict.verdict.upper()}")
+    typer.echo("")
+    for c in verdict.criteria:
+        value = "n/a" if c.value is None else f"{c.value:,.6g}"
+        bar = "" if c.threshold is None else f"  (bar {c.threshold:,.6g})"
+        typer.echo(f"  [{mark[c.status]}] {c.name:<24} {value}{bar}")
+        reason = c.detail.get("reason")
+        if reason:
+            typer.echo(f"         {reason}")
+
+    typer.echo("")
     typer.echo(f"selected edge:        {result.mean_selected_edge}")
     typer.echo(f"universe baseline:    {result.mean_baseline_edge}")
     typer.echo(f"lift (selected−base): {result.lift}")
     typer.echo(f"persistence:          {result.mean_persistence}")
-    typer.echo("")
-    typer.echo(
-        "A non-positive lift means wallet selection adds nothing over the "
-        "universe. Per the plan, that is a STOP — replan before investing "
-        "in the chain indexer or execution stack."
+
+    boot = next(
+        (c.detail.get("bootstrap") for c in verdict.criteria if c.name == "positive_lift"), None
     )
+    if isinstance(boot, dict) and boot.get("available"):
+        typer.echo(
+            f"lift 95% interval:    [{boot['lower']}, {boot['upper']}]"
+            f"{'' if boot['excludes_zero'] else '  ← SPANS ZERO'}"
+        )
+
+    typer.echo("")
+    if verdict.verdict == FAIL:
+        typer.echo(
+            "A non-positive lift means wallet selection adds nothing over the "
+            "universe. Per the plan, that is a STOP — replan before investing "
+            "in the chain indexer or execution stack."
+        )
+    elif verdict.verdict == INSUFFICIENT:
+        typer.echo(
+            "The gate could not be decided. This is NOT a pass: the criteria "
+            "marked ---- above had too little evidence to answer. Accumulate "
+            "more settled history and re-run."
+        )
+        for c in verdict.blocking:
+            typer.echo(f"  {c.name}")
+    else:
+        typer.echo("Lift is positive over the stated minimum evidence.")
+        if isinstance(boot, dict) and boot.get("available") and not boot["excludes_zero"]:
+            typer.echo(
+                "  NOTE: the interval spans zero. The point estimate clears the "
+                "stated bar, but this result is not distinguishable from noise."
+            )
+
+    if not verdict.passed:
+        raise typer.Exit(1)
 
 
 def _now() -> datetime:
