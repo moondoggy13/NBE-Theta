@@ -93,7 +93,36 @@ interface ModeState {
     confirmLive: boolean;
     allOfThree: boolean;
   };
+  shadowGate?: { passed: boolean; run: { id: string; evaluated_at: string } | null };
   reason?: string;
+}
+
+/** One criterion inside a recorded packet. */
+interface CriterionRow {
+  status: "pass" | "fail" | "insufficient_evidence";
+  value?: number;
+  threshold?: number;
+  reason?: string;
+}
+
+interface GateRun {
+  id: string;
+  evaluated_at: string;
+  window_start: string;
+  window_end: string;
+  verdict: "pass" | "fail" | "insufficient_evidence";
+  criteria: Record<string, CriterionRow>;
+  headline: Record<string, unknown>;
+  policy_versions: string[];
+  note: string | null;
+}
+
+interface GateState {
+  ok: boolean;
+  latest?: GateRun | null;
+  latestPass?: GateRun | null;
+  authorisesLive?: boolean;
+  runs?: GateRun[];
 }
 
 interface SignalsState {
@@ -141,8 +170,9 @@ export function OperatorConsole() {
   const [signals, setSignals] = useState<SignalsState | null>(null);
   const [cohort, setCohort] = useState<CohortState | null>(null);
   const [health, setHealth] = useState<HealthState | null>(null);
+  const [gateRuns, setGateRuns] = useState<GateState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"signals" | "cohort" | "health">("signals");
+  const [tab, setTab] = useState<"signals" | "cohort" | "health" | "gate">("signals");
 
   // Nothing here writes state before the first await: a synchronous
   // setState inside an effect body triggers a cascading render, and
@@ -152,23 +182,31 @@ export function OperatorConsole() {
     if (!token) return;
     const headers = { authorization: `Bearer ${token}` };
     try {
-      const [m, s, c, h] = await Promise.all([
+      const [m, s, c, h, g] = await Promise.all([
         fetch("/api/console/mode", { headers }),
         fetch("/api/console/signals?limit=50", { headers }),
         fetch("/api/console/cohort", { headers }),
         fetch("/api/console/health", { headers }),
+        fetch("/api/console/gate", { headers }),
       ]);
       if (isCancelled()) return;
       if (m.status === 401) {
         setError("Token rejected.");
         return;
       }
-      const [mj, sj, cj, hj] = await Promise.all([m.json(), s.json(), c.json(), h.json()]);
+      const [mj, sj, cj, hj, gj] = await Promise.all([
+        m.json(),
+        s.json(),
+        c.json(),
+        h.json(),
+        g.json(),
+      ]);
       if (isCancelled()) return;
       setMode(mj);
       setSignals(sj);
       setCohort(cj);
       setHealth(hj);
+      setGateRuns(gj);
       setError(null);
     } catch (e) {
       if (isCancelled()) return;
@@ -273,8 +311,17 @@ export function OperatorConsole() {
         </div>
       )}
 
+      {mode?.ok && mode.shadowGate?.passed === false && (
+        <div className="rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <strong>The shadow gate has not passed.</strong> No <code>shadow_gate_runs</code> row
+          with verdict <code>pass</code> is recorded, so promotion to live is refused regardless of
+          the env flags. See the <em>gate</em> tab for which criteria are outstanding, and run{" "}
+          <code>theta-signals gate --record</code> to record a fresh packet.
+        </div>
+      )}
+
       <nav className="flex gap-1 border-b border-neutral-200 text-sm">
-        {(["signals", "cohort", "health"] as const).map((t) => (
+        {(["signals", "cohort", "health", "gate"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -290,6 +337,7 @@ export function OperatorConsole() {
       {tab === "signals" && <SignalsPanel data={signals} />}
       {tab === "cohort" && <CohortPanel data={cohort} />}
       {tab === "health" && <HealthPanel data={health} />}
+      {tab === "gate" && <GatePanel data={gateRuns} />}
     </main>
   );
 }
@@ -315,6 +363,138 @@ function ModeBadge({ mode, killSwitch }: { mode?: Mode; killSwitch?: boolean }) 
       }`}
     >
       {label.toUpperCase()}
+    </span>
+  );
+}
+
+/**
+ * The promotion decision packet.
+ *
+ * Three states per criterion, not two, and the panel shows them as three
+ * — an unmeasurable criterion renders as its own thing rather than as a
+ * failure or (much worse) a tick. An operator looking at this needs to
+ * tell "we tried and it did not work" apart from "we have not measured
+ * this yet"; those call for opposite responses, and a two-colour
+ * checklist collapses them.
+ */
+function GatePanel({ data }: { data: GateState | null }) {
+  if (!data?.ok) return <Empty note={data?.ok === false ? "unavailable" : "loading"} />;
+  const latest = data.latest ?? null;
+
+  if (!latest) {
+    return (
+      <section className="space-y-3">
+        <p className="text-sm text-neutral-500">
+          No shadow-gate packet has been recorded. Run{" "}
+          <code className="font-mono text-xs">theta-signals gate --record</code> in the Python
+          worker; until a packet with verdict <code>pass</code> exists, promotion to live is
+          refused.
+        </p>
+      </section>
+    );
+  }
+
+  const criteria = Object.entries(latest.criteria ?? {});
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <VerdictBadge verdict={latest.verdict} />
+        <span className="text-xs text-neutral-500">
+          window {latest.window_start?.slice(0, 10)} → {latest.window_end?.slice(0, 10)}, evaluated{" "}
+          {latest.evaluated_at?.slice(0, 19).replace("T", " ")}
+        </span>
+      </div>
+
+      {!data.authorisesLive && (
+        <p className="text-sm text-neutral-600">
+          No passing packet on record — live trading is not authorised.
+        </p>
+      )}
+      {data.authorisesLive && latest.verdict !== "pass" && (
+        // Worth saying out loud: the newest run and the newest *passing*
+        // run are different questions, and the rule enforced by
+        // /api/console/mode is the second one.
+        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+          The most recent packet is <strong>{latest.verdict}</strong>, but an earlier passing
+          packet still authorises promotion. Re-record before going live.
+        </p>
+      )}
+
+      <div>
+        <h2 className="mb-2 text-sm font-medium">Criteria</h2>
+        <ul className="space-y-1 text-sm">
+          {criteria.map(([name, c]) => (
+            <li
+              key={name}
+              className="flex items-baseline justify-between gap-3 border-b border-neutral-100 py-1"
+            >
+              <span className="flex items-baseline gap-2">
+                <CriterionMark status={c.status} />
+                <span className="font-mono text-xs">{name}</span>
+              </span>
+              <span className="text-right text-xs text-neutral-600">
+                {c.value !== undefined ? c.value.toLocaleString() : "not measured"}
+                {c.threshold !== undefined && (
+                  <span className="text-neutral-400"> / bar {c.threshold.toLocaleString()}</span>
+                )}
+                {c.reason && <div className="text-neutral-400">{c.reason}</div>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {(latest.policy_versions ?? []).length > 1 && (
+        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+          This packet spans {latest.policy_versions.length} policy versions (
+          {latest.policy_versions.join(", ")}) — it averages more than one system.
+        </p>
+      )}
+
+      {(data.runs ?? []).length > 1 && (
+        <div>
+          <h2 className="mb-2 text-sm font-medium">History</h2>
+          <ul className="space-y-1 text-sm">
+            {(data.runs ?? []).slice(1).map((r) => (
+              <li key={r.id} className="flex justify-between border-b border-neutral-100 py-1">
+                <span className="text-xs text-neutral-500">
+                  {r.evaluated_at?.slice(0, 10)} {r.note ?? ""}
+                </span>
+                <VerdictBadge verdict={r.verdict} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function VerdictBadge({ verdict }: { verdict: GateRun["verdict"] }) {
+  const colors: Record<GateRun["verdict"], string> = {
+    pass: "bg-green-700",
+    fail: "bg-red-600",
+    insufficient_evidence: "bg-neutral-500",
+  };
+  return (
+    <span className={`rounded px-2 py-1 text-xs font-semibold text-white ${colors[verdict]}`}>
+      {verdict.replace("_", " ").toUpperCase()}
+    </span>
+  );
+}
+
+function CriterionMark({ status }: { status: CriterionRow["status"] }) {
+  const marks: Record<CriterionRow["status"], [string, string]> = {
+    pass: ["✓", "text-green-700"],
+    fail: ["✗", "text-red-600"],
+    // Not a tick and not a cross. "We have not measured this" is its own
+    // answer and blocks promotion just as a failure does.
+    insufficient_evidence: ["–", "text-neutral-400"],
+  };
+  const [glyph, cls] = marks[status];
+  return (
+    <span className={`font-mono text-xs ${cls}`} title={status}>
+      {glyph}
     </span>
   );
 }

@@ -50,7 +50,9 @@ declare
     'wallet_clusters', 'wallet_cluster_members', 'scoring_policies',
     'wallet_cohort',
     -- 016
-    'source_actions', 'signal_evaluations', 'strategy_lots', 'shadow_fills'
+    'source_actions', 'signal_evaluations', 'strategy_lots', 'shadow_fills',
+    -- 018
+    'shadow_gate_runs'
   ];
   rls boolean;
 begin
@@ -95,7 +97,11 @@ declare
     'wallet_clusters', 'wallet_cluster_members', 'scoring_policies',
     'wallet_cohort',
     -- 016: alpha internals + the simulated portfolio.
-    'source_actions', 'signal_evaluations', 'strategy_lots', 'shadow_fills'
+    'source_actions', 'signal_evaluations', 'strategy_lots', 'shadow_fills',
+    -- 018: the promotion decision packet. Not merely internal — it names
+    -- the conditions under which we would commit capital, and a passing
+    -- row is what /api/console/mode treats as authorisation.
+    'shadow_gate_runs'
   ];
   n int;
 begin

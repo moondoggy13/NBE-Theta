@@ -230,6 +230,13 @@ Remaining PRs:
 - **PR 10 — `apps/executor`.** TypeScript, holds the signer, consumes the
   intent outbox, official CLOB client, user-stream reconciliation.
 - **PR 11 — Shadow-gate reporting.** The 30-day / 100-signal decision packet.
+  *Delivered.* The packet turned out to need a third per-criterion
+  outcome — `insufficient_evidence` — because four of the spec's six
+  conditions are vacuously true over an empty window, which would have
+  let a system with no track record promote itself. See
+  `docs/adr/0003-shadow-gate-enforcement.md`, which also makes the gate a
+  machine-checked precondition in `/api/console/mode` rather than a
+  documented one.
 
 ## Consequences
 
