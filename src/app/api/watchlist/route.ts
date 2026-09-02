@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireOperator } from "@/lib/auth";
+import { auditFields, requireOperator } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/client";
 
 /**
@@ -29,7 +29,7 @@ const STATUSES = new Set(["watch", "copy", "mute"]);
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 export async function GET(req: Request) {
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "viewer" });
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();
@@ -43,7 +43,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "operator" });
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   if (body.weight !== undefined) patch.weight = body.weight;
   if (body.note !== undefined) patch.note = body.note;
   if (patch.status === undefined) patch.status = "watch"; // insert default
-  patch.added_by = "operator";
+  patch.added_by = auth.principal.label;
 
   const { data, error } = await sb
     .from("wallet_watchlist")
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ ok: false, reason: error.message }, { status: 500 });
 
   await sb.from("operator_actions").insert({
-    actor: "dashboard",
+    ...auditFields(auth.principal),
     action: "watchlist_upsert",
     detail: { wallet, status: patch.status, weight: body.weight, note: body.note },
   });

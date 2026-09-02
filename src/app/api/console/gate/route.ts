@@ -32,7 +32,7 @@ const COLUMNS =
   "policy_versions, note, created_by";
 
 export async function GET(req: Request) {
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "viewer" });
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();

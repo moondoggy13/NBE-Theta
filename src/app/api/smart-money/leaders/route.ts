@@ -37,7 +37,7 @@ interface LeaderRow {
 export async function GET(req: Request) {
   // Every source table below is on the RLS deny-list. serverClient()
   // bypasses RLS, so without this check the deny-list protects nothing.
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "viewer" });
   if (!auth.ok) return auth.response;
   const sb = serverClient();
   if (!sb) return NextResponse.json({ leaders: [], candidates: [] });

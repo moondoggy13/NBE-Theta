@@ -21,7 +21,7 @@ const STALE_AFTER_S = 120;
 const HEARTBEAT_STALE_AFTER_S = 300;
 
 export async function GET(req: Request) {
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "viewer" });
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
     sb
       .from("process_heartbeats")
       .select("*")
-      .order("updated_at", { ascending: false })
+      .order("last_beat", { ascending: false })
       .limit(20),
     sb
       .from("ingest_runs")
@@ -54,20 +54,46 @@ export async function GET(req: Request) {
       .limit(20),
     sb
       .from("operator_actions")
-      .select("actor, action, detail, created_at")
-      .order("created_at", { ascending: false })
+      .select("actor, actor_email, auth_method, action, detail, occurred_at")
+      .order("occurred_at", { ascending: false })
       .limit(20),
   ]);
 
-  type Heartbeat = { process?: string; updated_at?: string };
+  // Both of these queries named columns that do not exist until PR 12
+  // fixed them: `process_heartbeats.updated_at` (the column is
+  // `last_beat`) and `operator_actions.created_at` (it is `occurred_at`).
+  // PostgREST returned an error, `.data` was null, and both panels
+  // rendered as "0 processes, 0 stale, no audit trail" — which reads as
+  // a healthy idle system.
+  //
+  // That is precisely the confusion this route exists to prevent: its
+  // own docstring says a quiet market and a broken collector look
+  // identical, and it had the bug in itself. So the errors are surfaced
+  // now rather than swallowed. An empty panel and a failed query must
+  // never look the same.
+  const errors = Object.entries({
+    quotes: quotes.error,
+    stale: stale.error,
+    disconnected: disconnected.error,
+    heartbeats: heartbeats.error,
+    ingestRuns: runs.error,
+    auditTrail: lastAction.error,
+  })
+    .filter(([, e]) => e)
+    .map(([name, e]) => ({ query: name, message: (e as { message: string }).message }));
+
+  type Heartbeat = { process?: string; last_beat?: string };
   const beats = (heartbeats.data ?? []) as Heartbeat[];
   const staleBeats = beats.filter((b) => {
-    if (!b.updated_at) return true;
-    return now - Date.parse(b.updated_at) > HEARTBEAT_STALE_AFTER_S * 1000;
+    if (!b.last_beat) return true;
+    return now - Date.parse(b.last_beat) > HEARTBEAT_STALE_AFTER_S * 1000;
   });
 
   return NextResponse.json({
     ok: true,
+    // Non-empty means a panel below is empty because its query failed,
+    // not because there is nothing to report.
+    queryErrors: errors,
     quotes: {
       tracked: quotes.count ?? 0,
       stale: stale.count ?? 0,

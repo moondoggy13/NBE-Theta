@@ -17,7 +17,7 @@ import { serverClient } from "@/lib/supabase/client";
  */
 
 export async function GET(req: Request) {
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "viewer" });
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();
