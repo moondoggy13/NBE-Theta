@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
+import { requireOperator } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/client";
 
 /**
  * Watchlist control route — the operator's curation surface for which
  * wallets the platform follows (and, later, copies).
  *
- * GET returns the list (dashboard render). POST upserts one entry:
+ * GET returns the list. POST upserts one entry:
  *   { wallet, status?: 'watch'|'copy'|'mute', weight?: 0..10, note? }
  *
- * POST auth matches /api/kill-switch exactly: bearer CONTROL_API_TOKEN
- * required in any non-development environment, fail-closed (503) if the
- * token is unset in production, dev bypass so local dashboard buttons
- * work. Every accepted mutation writes an operator_actions audit row.
+ * **Both verbs are gated.** GET used to be open on the reasoning that
+ * reads are harmless, which is wrong here: `wallet_watchlist` is on the
+ * RLS deny-list because the set of wallets we follow *is* the thesis,
+ * and this route reads it with the service-role key that bypasses RLS.
+ * See `src/lib/auth.ts`.
+ *
+ * Every accepted mutation writes an operator_actions audit row.
  */
 
 interface Body {
@@ -24,7 +28,10 @@ interface Body {
 const STATUSES = new Set(["watch", "copy", "mute"]);
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireOperator(req);
+  if (!auth.ok) return auth.response;
+
   const sb = serverClient();
   if (!sb) return NextResponse.json([]);
   const { data, error } = await sb
@@ -36,7 +43,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const auth = checkAuth(req);
+  const auth = requireOperator(req);
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();
@@ -85,40 +92,3 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, entry: data });
 }
 
-type AuthResult = { ok: true } | { ok: false; response: NextResponse };
-
-function checkAuth(req: Request): AuthResult {
-  const isProd = process.env.NODE_ENV === "production";
-  const expected = process.env.CONTROL_API_TOKEN;
-
-  if (!isProd) {
-    // Local dev bypass — the dashboard's browser-side buttons keep
-    // working without a token. Any deployment must set NODE_ENV=production.
-    return { ok: true };
-  }
-  if (!expected || expected.length < 16) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { ok: false, reason: "control api token not configured" },
-        { status: 503 },
-      ),
-    };
-  }
-  const auth = req.headers.get("authorization") ?? "";
-  const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!constantTimeEquals(provided, expected)) {
-    return {
-      ok: false,
-      response: NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 401 }),
-    };
-  }
-  return { ok: true };
-}
-
-function constantTimeEquals(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}

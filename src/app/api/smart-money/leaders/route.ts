@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOperator } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/client";
 import { assignTiers } from "@/lib/smart-money";
 
@@ -33,7 +34,11 @@ interface LeaderRow {
   lastActiveMs: number | null;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // Every source table below is on the RLS deny-list. serverClient()
+  // bypasses RLS, so without this check the deny-list protects nothing.
+  const auth = requireOperator(req);
+  if (!auth.ok) return auth.response;
   const sb = serverClient();
   if (!sb) return NextResponse.json({ leaders: [], candidates: [] });
 

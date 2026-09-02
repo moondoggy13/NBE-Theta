@@ -1,7 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+# Unanchored: pnpm workspaces put a node_modules (with symlinks back into
+# packages/) under every app and package, not just the root. The old
+# `/node_modules` only matched the root one, which is how a workspace
+# symlink got committed in #14.
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
