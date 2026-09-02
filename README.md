@@ -153,7 +153,9 @@ Also:
 - Raw wallet-intelligence tables are service-role only — never exposed
   through anonymous RLS.
 - Control routes (`/api/kill-switch`, `/api/watchlist`, `/api/console/*`)
-  are bearer-gated and write an `operator_actions` audit row.
+  are bearer-gated and write an `operator_actions` audit row. The gate is
+  a shared secret, not identity — rotating it is the only revocation
+  mechanism: `docs/runbooks/rotate-control-api-token.md`.
 - See `AGENTS.md` for the full development contract.
 
 ## Docs
