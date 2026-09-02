@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireOperator } from "@/lib/auth";
+import { auditFields, requireOperator } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/client";
 
 /**
  * Kill-switch control route.
  *
- * POST is authenticated with a shared bearer token (CONTROL_API_TOKEN)
- * in any non-development environment. This is placeholder auth until
- * Supabase Auth / Cloudflare Access lands in a later PR. The immediate
+ * POST requires the `operator` role — a verified Supabase session, or
+ * the shared token during its transition period (PR 12 / ADR-0004). The
+ * immediate
  * goal is that anonymous internet cannot flip the kill switch,
  * autonomous-execution toggle, or preset in production.
  *
@@ -35,7 +35,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const authResult = requireOperator(req);
+  const authResult = await requireOperator(req, { role: "operator" });
   if (!authResult.ok) return authResult.response;
 
   const sb = serverClient();
@@ -48,6 +48,18 @@ export async function POST(req: Request) {
 
   const { data, error } = await sb.from("risk_state").update(patch).eq("id", 1).select().single();
   if (error) return NextResponse.json({ ok: false, reason: error.message }, { status: 500 });
+
+  // The kill switch had no audit row until PR 12, which was the largest
+  // gap in the trail: halting or re-arming trading is the most
+  // consequential thing this route does, and it left no record of who
+  // did it. README claimed control routes wrote one; for this route that
+  // was simply untrue.
+  await sb.from("operator_actions").insert({
+    ...auditFields(authResult.principal),
+    action: "kill_switch",
+    detail: patch,
+  });
+
   return NextResponse.json({ ok: true, state: data });
 }
 

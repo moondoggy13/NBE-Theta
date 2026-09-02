@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireOperator } from "@/lib/auth";
+import { auditFields, requireOperator } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/client";
 
 /**
@@ -41,7 +41,8 @@ const LIVE_CONFIRMATION = "ENABLE-LIVE";
 interface Body {
   mode?: Mode;
   confirm?: string;
-  actor?: string;
+  // No `actor`. It used to be here and it used to be believed; see the
+  // note where the audit row is written.
 }
 
 function envGate() {
@@ -85,7 +86,7 @@ async function passingGate(
 }
 
 export async function GET(req: Request) {
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "viewer" });
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();
@@ -110,7 +111,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const auth = requireOperator(req);
+  const auth = await requireOperator(req, { role: "operator" });
   if (!auth.ok) return auth.response;
 
   const sb = serverClient();
@@ -132,6 +133,22 @@ export async function POST(req: Request) {
   }
 
   if (mode === "live") {
+    // Checked before anything else in this branch: "you may not do this
+    // at all" precedes "here is what else is unmet". Arming real money
+    // is the one action that requires `admin`; everything else on this
+    // route, including hitting the kill switch, is `operator`. The
+    // shared token is capped at `operator` by default (see
+    // sharedTokenRole in src/lib/auth.ts), so promotion to live needs a
+    // named human with an account — which is the point of ADR-0004.
+    if (auth.principal.role !== "admin") {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: `promotion to live requires the 'admin' role; you hold '${auth.principal.role}'`,
+        },
+        { status: 403 },
+      );
+    }
     if (body.confirm !== LIVE_CONFIRMATION) {
       return NextResponse.json(
         {
@@ -184,7 +201,11 @@ export async function POST(req: Request) {
   }
 
   const now = new Date().toISOString();
-  const actor = typeof body.actor === "string" && body.actor ? body.actor : "operator";
+  // From the verified principal, never the request body. Until PR 12
+  // this read `body.actor`, so anyone holding the shared token could
+  // record a mode change under someone else's name — an audit log the
+  // audited party writes is not an audit log.
+  const actor = auth.principal.label;
 
   const { data, error } = await sb
     .from("risk_state")
@@ -203,7 +224,7 @@ export async function POST(req: Request) {
   // action available here, so it is recorded even though risk_state
   // already carries who and when.
   await sb.from("operator_actions").insert({
-    actor,
+    ...auditFields(auth.principal),
     action: "mode_change",
     detail: { mode, envGate: envGate(), shadowGateRun: authorisingGate },
   });

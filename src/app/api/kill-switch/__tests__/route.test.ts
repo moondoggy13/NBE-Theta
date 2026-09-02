@@ -71,7 +71,10 @@ describe("POST /api/kill-switch auth gate", () => {
     const r = await POST(reqWithHeader("Bearer anything"));
     expect(r.status).toBe(503);
     const body = (await r.json()) as { reason?: string };
-    expect(body.reason).toMatch(/control api token not configured/);
+    // PR 12 widened the message: there are two mechanisms now, and a
+    // deployment with neither configured is broken in a way that naming
+    // only the token would under-describe.
+    expect(body.reason).toMatch(/no authentication mechanism configured/);
   });
 
   it("returns 503 in production when CONTROL_API_TOKEN is too short", async () => {

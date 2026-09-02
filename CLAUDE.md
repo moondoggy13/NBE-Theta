@@ -157,6 +157,32 @@ Related invariants:
   stored `true` looks identical whether or not anyone read a legal
   opinion.
 
+## Operator identity (PR 12) — what must not regress
+
+`src/lib/auth.ts` is the auth boundary. Changing it needs an ADR, a
+`risk-gate-*.test.ts`, and review by someone other than the author.
+
+- **A valid Supabase session is authentication, not authorisation.** The
+  `operator_accounts` row is the grant. Never treat a verified user
+  without a row as an operator — that would make the project's signup
+  page the access control.
+- **Roles ascend: `viewer` < `operator` < `admin`.** Promotion to live
+  requires `admin`; the kill switch deliberately requires only
+  `operator`, because needing the highest privilege to *stop* trading
+  would be backwards.
+- **The shared token is capped at `operator`** and must stay incapable of
+  arming live trading. `CONTROL_API_TOKEN_ROLE=admin` exists but is a
+  deliberate, written-down override — never a default.
+- **`operator_actions.actor` comes from the verified principal, never
+  the request body.** It used to come from the body, which meant the
+  audited party wrote their own log entry. Use `auditFields(principal)`
+  so actor, user id, email and auth method always travel together.
+- **Fail closed on every branch**, and keep 503 for "a mechanism exists
+  and could not be reached" — a wrong credential is 401, so outages are
+  not buried under bad-password noise.
+- **`operator_actions` is anon-denied** as of migration 019; it carries
+  operator emails. Do not re-grant it.
+
 ## Non-goals (do not scope-creep)
 
 - No polymarket.com browser-driver strategy.

@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const KEYS = [
   "NODE_ENV",
   "CONTROL_API_TOKEN",
+  "CONTROL_API_TOKEN_ROLE",
   "EXECUTION_PROVIDER",
   "POLYMARKET_LIVE",
   "CONFIRM_LIVE",
@@ -106,9 +107,13 @@ vi.mock("@/lib/supabase/client", () => ({ serverClient: () => fakeClient() }));
 beforeEach(() => {
   for (const k of KEYS) delete env[k];
   env.CONTROL_API_TOKEN = TOKEN;
-  // The three-flag env gate satisfied, so that the ONLY thing standing
-  // between these requests and live mode is the shadow gate. A test
-  // where two conditions block cannot tell you which one did.
+  // PR 12 caps the shared token at 'operator' by default, and promotion
+  // to live requires 'admin'. That role rule is exercised in
+  // risk-gate-operator-roles.test.ts; here it is lifted so this file
+  // keeps testing the SHADOW GATE in isolation. A test where two
+  // conditions block cannot tell you which one did.
+  env.CONTROL_API_TOKEN_ROLE = "admin";
+  // The three-flag env gate satisfied too, for the same reason.
   env.EXECUTION_PROVIDER = "polymarket-clob";
   env.POLYMARKET_LIVE = "true";
   env.CONFIRM_LIVE = "YES";

@@ -52,7 +52,9 @@ declare
     -- 016
     'source_actions', 'signal_evaluations', 'strategy_lots', 'shadow_fills',
     -- 018
-    'shadow_gate_runs'
+    'shadow_gate_runs',
+    -- 019
+    'operator_accounts'
   ];
   rls boolean;
 begin
@@ -78,7 +80,7 @@ declare
     'signals', 'wallet_tier_snapshots', 'wallet_anomaly_events',
     'venue_orders', 'venue_fills', 'venue_positions', 'account_snapshots',
     'risk_snapshots', 'reconciliation_runs', 'reconciliation_breaks',
-    'process_heartbeats', 'operator_actions',
+    'process_heartbeats',
     -- 014: public venue data, same class as markets/outcomes.
     'market_quote_latest'
   ];
@@ -101,7 +103,14 @@ declare
     -- 018: the promotion decision packet. Not merely internal — it names
     -- the conditions under which we would commit capital, and a passing
     -- row is what /api/console/mode treats as authorisation.
-    'shadow_gate_runs'
+    'shadow_gate_runs',
+    -- 019: the authorization table itself. Anon read would let anyone
+    -- enumerate operators and see who holds admin.
+    'operator_accounts',
+    -- 019: the audit log gained actor_email, so its unused anon policy
+    -- (from 010) became a browser-reachable list of who did what. Only
+    -- /api/console/health reads it, and that is operator-gated.
+    'operator_actions'
   ];
   n int;
 begin
@@ -147,7 +156,10 @@ declare
     'wallet_score_snapshots', 'execution_intents',
     -- Unbounded history: streaming it would replicate every tick to
     -- every browser.
-    'market_quotes'
+    'market_quotes',
+    -- 019: carries operator emails and is no longer anon-readable, so
+    -- streaming it would be dead weight at best.
+    'operator_actions'
   ];
   n int;
 begin

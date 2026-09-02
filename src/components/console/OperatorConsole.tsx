@@ -1,22 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { browserClient } from "@/lib/supabase/client";
 
 /**
  * Operator console.
  *
- * **Auth is a shared bearer secret held in sessionStorage**, sent on
- * every request. That is the same `CONTROL_API_TOKEN` model the control
- * routes already use, and it is a deliberate placeholder: ADR-0002's
- * rollout requires real SSO with per-operator roles before live mode.
- * What it buys today is that the browser holds no alpha data until
- * someone supplies the secret, and the server refuses every request
- * without it.
+ * **Two ways in, and the console prefers the good one.** Where Supabase
+ * is configured it signs in with email and password and sends the
+ * session JWT, which gives the server a verified identity and a role
+ * (PR 12 / ADR-0004). Where it is not — local dev, and any deployment
+ * still mid-transition — it falls back to the shared
+ * `CONTROL_API_TOKEN` field. The header says which is in use, because a
+ * shared credential should look like the transitional thing it is
+ * rather than like normal operation.
  *
- * sessionStorage rather than localStorage so the token dies with the
- * tab. An internal tool left logged in on a shared machine is a
- * different kind of exposure from the one we just closed, and not one
- * worth trading for convenience.
+ * Either credential lives in sessionStorage rather than localStorage, so
+ * it dies with the tab. An internal tool left logged in on a shared
+ * machine is a different kind of exposure from the one PR 9 closed, and
+ * not one worth trading for convenience.
+ *
+ * **What this file hides is not a security control.** Buttons are
+ * disabled by role so an operator is not offered an action that will
+ * refuse them, but every route enforces its own role server-side. A
+ * caller who ignores the UI and posts directly is refused there.
  *
  * The panels deliberately lead with what is *wrong* or *missing* —
  * rejection histograms, exclusion reasons, stale quotes — rather than
@@ -117,6 +124,15 @@ interface GateRun {
   note: string | null;
 }
 
+interface Identity {
+  userId: string | null;
+  email: string | null;
+  role: "viewer" | "operator" | "admin";
+  method: "supabase" | "shared_token";
+  label: string;
+  sharedCredential: boolean;
+}
+
 interface GateState {
   ok: boolean;
   latest?: GateRun | null;
@@ -166,11 +182,14 @@ function pct(v: number | null | undefined): string {
 export function OperatorConsole() {
   const token = useSyncExternalStore(subscribeToken, tokenSnapshot, tokenServerSnapshot);
   const [draft, setDraft] = useState("");
+  const [email, setEmail] = useState("");
   const [mode, setMode] = useState<ModeState | null>(null);
   const [signals, setSignals] = useState<SignalsState | null>(null);
   const [cohort, setCohort] = useState<CohortState | null>(null);
   const [health, setHealth] = useState<HealthState | null>(null);
   const [gateRuns, setGateRuns] = useState<GateState | null>(null);
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"signals" | "cohort" | "health" | "gate">("signals");
 
@@ -182,24 +201,31 @@ export function OperatorConsole() {
     if (!token) return;
     const headers = { authorization: `Bearer ${token}` };
     try {
-      const [m, s, c, h, g] = await Promise.all([
+      const [m, s, c, h, g, w] = await Promise.all([
         fetch("/api/console/mode", { headers }),
         fetch("/api/console/signals?limit=50", { headers }),
         fetch("/api/console/cohort", { headers }),
         fetch("/api/console/health", { headers }),
         fetch("/api/console/gate", { headers }),
+        fetch("/api/console/whoami", { headers }),
       ]);
       if (isCancelled()) return;
       if (m.status === 401) {
-        setError("Token rejected.");
+        // Clear the credential rather than leaving a dead one in place.
+        // A Supabase access token expires after about an hour, and a
+        // console that keeps retrying with it just shows an error
+        // forever instead of offering the sign-in form again.
+        writeToken(null);
+        setError("Session rejected or expired. Sign in again.");
         return;
       }
-      const [mj, sj, cj, hj, gj] = await Promise.all([
+      const [mj, sj, cj, hj, gj, wj] = await Promise.all([
         m.json(),
         s.json(),
         c.json(),
         h.json(),
         g.json(),
+        w.json(),
       ]);
       if (isCancelled()) return;
       setMode(mj);
@@ -207,6 +233,7 @@ export function OperatorConsole() {
       setCohort(cj);
       setHealth(hj);
       setGateRuns(gj);
+      setIdentity((wj as { identity?: Identity }).identity ?? null);
       setError(null);
     } catch (e) {
       if (isCancelled()) return;
@@ -233,11 +260,74 @@ export function OperatorConsole() {
   }, [load]);
 
   if (!token) {
+    const sb = browserClient();
+    // Supabase configured decides which sign-in to offer. Not a
+    // preference toggle: where real identity is available it is the only
+    // thing shown, so nobody reaches for the shared secret out of habit.
+    if (sb) {
+      return (
+        <main className="mx-auto max-w-md p-8">
+          <h1 className="text-lg font-semibold">NBE-Theta operator console</h1>
+          <p className="mt-2 text-sm text-neutral-500">
+            Internal. Sign in with your operator account.
+          </p>
+          <form
+            className="mt-4 space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSigningIn(true);
+              setError(null);
+              void sb.auth
+                .signInWithPassword({ email, password: draft })
+                .then(({ data, error: signInError }) => {
+                  setSigningIn(false);
+                  if (signInError || !data.session) {
+                    setError(signInError?.message ?? "sign-in failed");
+                    return;
+                  }
+                  setDraft("");
+                  writeToken(data.session.access_token);
+                });
+            }}
+          >
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="email"
+              className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+              autoComplete="username"
+            />
+            <input
+              type="password"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="password"
+              className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
+              autoComplete="current-password"
+            />
+            <button
+              type="submit"
+              disabled={signingIn}
+              className="w-full rounded bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+            >
+              {signingIn ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+          {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+          <p className="mt-4 text-xs text-neutral-500">
+            Signing in is not by itself access: an operator account with a role must exist for
+            your identity. Ask an admin if you are refused after a successful sign-in.
+          </p>
+        </main>
+      );
+    }
+
     return (
       <main className="mx-auto max-w-md p-8">
         <h1 className="text-lg font-semibold">NBE-Theta operator console</h1>
         <p className="mt-2 text-sm text-neutral-500">
-          Internal. Enter the operator token to continue.
+          Internal. Enter the shared operator token to continue.
         </p>
         <form
           className="mt-4 flex gap-2"
@@ -259,6 +349,10 @@ export function OperatorConsole() {
             Enter
           </button>
         </form>
+        <p className="mt-4 text-xs text-neutral-500">
+          Supabase is not configured here, so this deployment is still on the shared token. See
+          docs/adr/0004-operator-identity.md.
+        </p>
       </main>
     );
   }
@@ -276,6 +370,7 @@ export function OperatorConsole() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {identity && <IdentityBadge identity={identity} />}
           <ModeBadge mode={m?.mode} killSwitch={m?.kill_switch_active} />
           <button
             onClick={() => void load()}
@@ -339,6 +434,35 @@ export function OperatorConsole() {
       {tab === "health" && <HealthPanel data={health} />}
       {tab === "gate" && <GatePanel data={gateRuns} />}
     </main>
+  );
+}
+
+/**
+ * Who you are and what you can do, always on screen.
+ *
+ * The shared-credential case is called out rather than rendered like a
+ * normal login, because it is the state this PR exists to move away
+ * from: nobody should have to check an env file to discover that the
+ * audit trail will record "shared-token" instead of their name.
+ */
+function IdentityBadge({ identity }: { identity: Identity }) {
+  if (identity.sharedCredential) {
+    return (
+      <span
+        className="rounded bg-amber-600 px-2 py-1 text-xs font-semibold text-white"
+        title="Actions are recorded as 'shared-token', not as you. See ADR-0004."
+      >
+        SHARED TOKEN · {identity.role.toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="rounded border border-neutral-300 px-2 py-1 text-xs"
+      title={identity.userId ?? undefined}
+    >
+      {identity.label} · <strong>{identity.role}</strong>
+    </span>
   );
 }
 

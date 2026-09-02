@@ -134,8 +134,10 @@ verdict `pass` exists, and fails closed if it cannot tell.
 Four conditions stand between this repository and a real order. Three
 are machine-checked; the fourth is deliberately not.
 
-1. **Operator confirmation** — `/api/console/mode` requires
-   `confirm: "ENABLE-LIVE"` alongside the mode. Enforced.
+1. **A named admin, plus operator confirmation** — `/api/console/mode`
+   requires the `admin` role *and* `confirm: "ENABLE-LIVE"`. The shared
+   token is capped at `operator` and therefore cannot arm live trading
+   (PR 12 / ADR-0004). Enforced.
 2. **The three-flag env gate** — all of
    `EXECUTION_PROVIDER=polymarket-clob`, `POLYMARKET_LIVE=true`,
    `CONFIRM_LIVE=YES`, checked when the venue adapter is *constructed*,
@@ -153,9 +155,14 @@ Also:
 - Raw wallet-intelligence tables are service-role only — never exposed
   through anonymous RLS.
 - Control routes (`/api/kill-switch`, `/api/watchlist`, `/api/console/*`)
-  are bearer-gated and write an `operator_actions` audit row. The gate is
-  a shared secret, not identity — rotating it is the only revocation
-  mechanism: `docs/runbooks/rotate-control-api-token.md`.
+  require a verified Supabase session with an `operator_accounts` role,
+  and write an `operator_actions` audit row naming the verified actor —
+  never a name the caller supplied. Roles are `viewer` < `operator` <
+  `admin`; see `docs/runbooks/manage-operators.md`.
+- The shared `CONTROL_API_TOKEN` still works as a documented transition
+  (ADR-0004) but is capped at `operator`. Every action records which
+  mechanism authenticated it, so its retirement is a query rather than a
+  guess. Rotate it with `docs/runbooks/rotate-control-api-token.md`.
 - See `AGENTS.md` for the full development contract.
 
 ## Docs
@@ -165,6 +172,8 @@ Also:
   corrections, and the PR roadmap
 - `docs/adr/0003-shadow-gate-enforcement.md` — why the promotion gate has
   three outcomes per criterion instead of two
+- `docs/adr/0004-operator-identity.md` — per-operator roles, and why a
+  valid login is not authorisation
 - `AGENTS.md` — development contract (boundaries, migrations, tests, don'ts)
 - `CLAUDE.md` — repo navigation + what never to reintroduce
 - `python/README.md` — worker commands and layout
