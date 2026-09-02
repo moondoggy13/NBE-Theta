@@ -51,6 +51,26 @@ class Settings(BaseSettings):
     leaderboard_refresh_s: float = Field(default=3600.0, alias="LEADERBOARD_REFRESH_S", gt=0)
     leaderboard_limit: int = Field(default=50, alias="LEADERBOARD_LIMIT", ge=1, le=100)
 
+    # CLOB (Polymarket executable prices + market-data stream).
+    clob_base_url: str = Field(default="https://clob.polymarket.com", alias="CLOB_BASE_URL")
+    clob_timeout_s: float = Field(default=30.0, alias="CLOB_TIMEOUT_S", gt=0)
+    clob_ws_url: str = Field(
+        default="wss://ws-subscriptions-clob.polymarket.com/ws/market", alias="CLOB_WS_URL"
+    )
+    # Market-data collector (theta-market-data).
+    market_cycle_s: float = Field(default=15.0, alias="MARKET_CYCLE_S", gt=0)
+    market_max_messages: int = Field(default=500, alias="MARKET_MAX_MESSAGES", ge=1)
+    # Minimum gap between persisted quotes for one token. A busy book
+    # updates far faster than any consumer reads; see CollectorConfig.
+    market_min_quote_interval_s: float = Field(
+        default=1.0, alias="MARKET_MIN_QUOTE_INTERVAL_S", ge=0
+    )
+    market_stale_after_s: float = Field(default=120.0, alias="MARKET_STALE_AFTER_S", gt=0)
+    # Cap on tokens subscribed in one process. A watchlist that outgrows
+    # this needs sharding, and silently truncating would look like
+    # coverage we do not have — the collector logs the drop.
+    market_max_tokens: int = Field(default=200, alias="MARKET_MAX_TOKENS", ge=1)
+
     # Where raw API responses are archived (local FS now, R2/S3 later).
     raw_archive_dir: str = Field(default="./data/raw", alias="RAW_ARCHIVE_DIR")
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireOperator } from "@/lib/auth";
 import { serverClient } from "@/lib/supabase/client";
 
 /**
@@ -34,7 +35,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const authResult = checkAuth(req);
+  const authResult = requireOperator(req);
   if (!authResult.ok) return authResult.response;
 
   const sb = serverClient();
@@ -50,40 +51,4 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, state: data });
 }
 
-type AuthResult = { ok: true } | { ok: false; response: NextResponse };
 
-function checkAuth(req: Request): AuthResult {
-  const isProd = process.env.NODE_ENV === "production";
-  const expected = process.env.CONTROL_API_TOKEN;
-
-  if (!isProd) {
-    // Local dev bypass — the dashboard's browser-side buttons keep
-    // working without a token. Any deployment must set NODE_ENV=production.
-    return { ok: true };
-  }
-  if (!expected || expected.length < 16) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { ok: false, reason: "control api token not configured" },
-        { status: 503 },
-      ),
-    };
-  }
-  const auth = req.headers.get("authorization") ?? "";
-  const provided = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-  if (!constantTimeEquals(provided, expected)) {
-    return {
-      ok: false,
-      response: NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 401 }),
-    };
-  }
-  return { ok: true };
-}
-
-function constantTimeEquals(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}

@@ -102,6 +102,60 @@ would otherwise manufacture false alpha:
   to itself → zero-width interval → infinite apparent certainty).
 - Unresolved outcomes are dropped, never imputed.
 - Tier A requires an out-of-sample window.
+- **A missing price is `None`, never `0.0`.** "Unmeasured" and "no edge"
+  are different claims; conflating them dilutes a real edge and makes
+  thin quote coverage look like mediocrity. `clv` and `markout_*` stay
+  SQL NULL when there is no price history.
+- **Every historical price lookup is clamped to `as_of`.** Markouts and
+  CLV read `market_quotes` through `QuoteLookup`, which takes an `as_of`
+  ceiling. Do not add a lookup that skips it because "the caller already
+  filtered" — that assumption is what produced the settlement leak.
+
+## Market data (PR 6) — the two things not to undo
+
+- **`BookState.synced` is load-bearing.** A delta feed is only
+  meaningful on top of a known-current snapshot. Anything that could
+  have lost a message (reconnect, malformed delta, crossed book) clears
+  the flag, and an unsynced book emits NO quotes until a REST snapshot
+  restores it. Going quiet is correct: a missing quote is visible in the
+  freshness metrics, a wrong one is invisible and poisons every markout
+  derived from it.
+- **Resync applies the FULL book, not the top of it.** Rebuilding from
+  best-bid/best-ask alone looks right until the venue deletes that
+  level, at which point the view falls through to whatever arrives next
+  instead of the real next-best price.
+
+## The shadow gate (PR 11) — the third state is load-bearing
+
+`python/nbe_theta/signals/gate.py` judges the promotion criteria, and
+every criterion returns one of **three** outcomes: `pass`, `fail`,
+`insufficient_evidence`. Do not collapse that to a boolean, and do not
+add a criterion that returns only two.
+
+The reason is arithmetic, not taste. Over a window in which the system
+has done nothing: "zero duplicate orders" is true, "zero unresolved
+incidents" is true, a net P&L of exactly zero is not negative, and a p95
+over an empty list is whatever the default says. A two-valued gate reads
+four vacuous truths and promotes a system with no track record to live
+trading. `zero_unresolved_incidents` is the single deliberate exception
+— "nothing is broken" is a real answer even over an empty window, and it
+is also the only criterion not scoped to the window.
+
+Related invariants:
+
+- **`/api/console/mode` refuses `live` without a recorded
+  `shadow_gate_runs` row whose verdict is `pass`.** It fails closed on a
+  query error. This is a risk gate: changing it needs an ADR, a
+  `risk-gate-*.test.ts`, and review by someone other than the author.
+- **Verdict precedence is `fail` > `insufficient_evidence` > `pass`.**
+- **P&L counts settled and closed lots only.** Never mark open lots to
+  market — that is the same rule as "an episode is unscoreable until its
+  market settles", applied to the promotion decision.
+- **p95 is nearest-rank, never interpolated.** Interpolation invents a
+  latency below the real 95th observation, biasing towards passing.
+- **Compliance approval is not a boolean and must not become one.** A
+  stored `true` looks identical whether or not anyone read a legal
+  opinion.
 
 ## Non-goals (do not scope-creep)
 

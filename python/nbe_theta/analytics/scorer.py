@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal
 from typing import Any
 
 from nbe_theta.analytics import metrics as M
@@ -33,6 +32,7 @@ from nbe_theta.analytics.statistics import (
     one_sided_p_value,
     posterior_accuracy,
 )
+from nbe_theta.ingest.quote_store import QuoteLookup
 
 MODEL_VERSION = "wallet-skill-0.1.0"
 POPULATION_VERSION = "pop-0.1.0"
@@ -87,18 +87,44 @@ def filter_as_of(scored: list[ScoredEpisode], as_of: datetime) -> list[ScoredEpi
     return out
 
 
+def _markout(
+    scored: list[ScoredEpisode],
+    quotes: QuoteLookup | None,
+    horizon_key: str,
+    as_of: datetime,
+) -> float | None:
+    """Markout at a named horizon, or None when there is no price source.
+
+    None means "not measured", not "no edge". Callers persist it as SQL
+    NULL for exactly that reason — a 0.0 here would be indistinguishable
+    from a wallet the market never moved toward.
+    """
+
+    if quotes is None:
+        return None
+    return M.markout(scored, quotes, M.MARKOUT_HORIZONS[horizon_key], as_of=as_of)
+
+
 def score_wallet(
     wallet: str,
     scored: list[ScoredEpisode],
     as_of: datetime,
     *,
     prior: tuple[float, float],
-    forward_prices: dict[str, Decimal] | None = None,
+    quotes: QuoteLookup | None = None,
+    market_closes: dict[str, datetime] | None = None,
     seed: int = 12345,
 ) -> WalletScore:
-    """Score one wallet from its already-as_of-filtered episodes."""
+    """Score one wallet from its already-as_of-filtered episodes.
 
-    fwd = forward_prices or {}
+    ``quotes`` supplies the price history that markouts and closing-line
+    value are computed from (PR 6). It is optional: with no quote
+    coverage those columns stay null, which is the honest answer — they
+    are unmeasured, not zero. ``market_closes`` maps condition_id →
+    close time and is likewise required only for CLV.
+    """
+
+    closes = market_closes or {}
     n_ep = len(scored)
     n_fills = sum(s.episode.n_fills for s in scored)
     clusters = [s.event_cluster_id for s in scored]
@@ -151,10 +177,14 @@ def score_wallet(
         mean_excess_edge=skill,
         edge_lcb=boot.lower if boot else None,
         brier_delta=M.calibration_gap(scored),
-        clv=None,  # requires closing prices — PR 6 market data
-        markout_5m=M.markout(scored, fwd, "5m"),
-        markout_1h=M.markout(scored, fwd, "1h"),
-        markout_24h=M.markout(scored, fwd, "24h"),
+        clv=(
+            M.closing_line_value(scored, quotes, closes, as_of=as_of)
+            if quotes is not None
+            else None
+        ),
+        markout_5m=_markout(scored, quotes, "5m", as_of),
+        markout_1h=_markout(scored, quotes, "1h", as_of),
+        markout_24h=_markout(scored, quotes, "24h", as_of),
         drawdown=M.max_drawdown(scored),
         profit_concentration=M.profit_concentration(scored),
         fdr_q=None,  # filled by the universe-level pass below
@@ -171,6 +201,8 @@ def score_universe(
     *,
     q: float = 0.10,
     seed: int = 12345,
+    quotes: QuoteLookup | None = None,
+    market_closes: dict[str, datetime] | None = None,
 ) -> list[WalletScore]:
     """Score every wallet, then apply FDR across the whole universe.
 
@@ -178,6 +210,9 @@ def score_universe(
     Bayes), and FDR is applied across all wallets at once — screening
     thousands of wallets one-at-a-time at α=0.05 would label ~5% of pure
     noise as skilled.
+
+    ``quotes``/``market_closes`` are threaded to every wallet so markouts
+    and CLV are computed against one consistent price history.
     """
 
     filtered = {w: filter_as_of(eps, as_of) for w, eps in per_wallet.items()}
@@ -188,7 +223,18 @@ def score_universe(
     rates = [sum(1 for s in eps if s.correct) / len(eps) for eps in filtered.values() if eps]
     prior = fit_population_prior(rates)
 
-    scores = [score_wallet(w, eps, as_of, prior=prior, seed=seed) for w, eps in filtered.items()]
+    scores = [
+        score_wallet(
+            w,
+            eps,
+            as_of,
+            prior=prior,
+            seed=seed,
+            quotes=quotes,
+            market_closes=market_closes,
+        )
+        for w, eps in filtered.items()
+    ]
 
     # One-sided test that mean excess edge exceeds zero.
     p_values: list[float] = []

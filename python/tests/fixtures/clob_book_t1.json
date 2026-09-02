@@ -1,0 +1,16 @@
+{
+  "market": "0xcond2001",
+  "asset_id": "22220001",
+  "timestamp": "1814227200000",
+  "hash": "0xbookhash0001",
+  "bids": [
+    { "price": "0.41", "size": "800" },
+    { "price": "0.43", "size": "500" },
+    { "price": "0.42", "size": "1200" }
+  ],
+  "asks": [
+    { "price": "0.47", "size": "900" },
+    { "price": "0.45", "size": "600" },
+    { "price": "0.46", "size": "300" }
+  ]
+}

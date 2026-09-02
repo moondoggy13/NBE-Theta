@@ -11,8 +11,10 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 | `theta-registry` | PR 3 | Sweep the Gamma API → normalize markets/events/outcomes → version resolution rules → archive raw pages. |
 | `theta-wallet-backfill` | PR 4 | `seed`: discover candidates (leaderboards, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
 | `theta-live-monitor` | PR 4b | Always-on loop: watchlist trade sync, position snapshots, leaderboard sweeps, heartbeats. |
-| `theta-score-wallets` | **PR 5 (this)** | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
-| `theta-signal-generator` | later | Emit typed signal envelopes. |
+| `theta-score-wallets` | PR 5 | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
+| `theta-market-data` | PR 6 | `run`: stream the CLOB book for watchlisted markets into `market_quotes`, REST-resyncing after any gap. `backfill`: fill quote history from `/prices-history`. `snapshot`: print one book. |
+| `theta-cohort` | PR 7 | `classify-events`: sports / non-sports, fail-closed. `cluster`: group wallets that trade as one entity. `select-cohort`: apply eligibility vetoes, promote a bounded feeder set. `show`: the cohort and why. `budget`: polling arithmetic. |
+| `theta-signals` | PR 8, **PR 11 (this)** | `summary`: shadow-gate fill rate + rejection histogram. `gate`: the 30-day / 100-signal promotion decision packet — `--record` persists it, and only a persisted `pass` lets `/api/console/mode` go live. `policy`: active qualification and risk thresholds. |
 | … | later | ledger, graph, backtest, chain-enricher. |
 
 ## Layout
@@ -31,7 +33,33 @@ nbe_theta/
     ├── backfill.py     per-wallet trade-history backfill
     ├── ratelimit.py    per-source min-interval budget
     ├── wallet_cli.py   theta-wallet-backfill entrypoint
+    ├── clob.py         CLOB REST client + order-book parsing
+    ├── marketstream.py market WS seam + book state machine (sync flag)
+    ├── collector.py    stream → books → quotes, with REST gap repair
+    ├── quote_store.py  quote persistence + historical price lookup
+    ├── tokens.py       which outcome tokens to subscribe to
+    ├── triggers.py     large-trade / rapid-move ALERTS (never signals)
+    ├── market_cli.py   theta-market-data entrypoint
+    ├── budget.py       polling-budget arithmetic (ADR-0002 §E)
     └── archive.py      raw-response archive (FS now, R2/S3 later)
+analytics/
+    ├── taxonomy.py     sports / non-sports, fail-closed
+    ├── copyability.py  could we actually have mirrored this wallet?
+    ├── clustering.py   wallets that trade as one entity
+    ├── cohort.py       eligibility vetoes + bounded feeder set
+    ├── cohort_store.py selection-layer persistence
+    └── cohort_cli.py   theta-cohort entrypoint
+signals/
+    ├── actions.py      source fills → one decision (dedupe-keyed)
+    ├── gates.py        qualification vetoes, each with its own reason
+    ├── sizing.py       risk engine: factors multiply, caps clamp
+    ├── lots.py         strategy lots, exit mirroring, settlement
+    ├── shadow.py       bounded FOK against the observed book
+    ├── pipeline.py     action → gates → sizing → shadow → lot
+    ├── store.py        signal-layer persistence
+    ├── gate.py         promotion criteria (pure); three outcomes, not two
+    ├── gate_store.py   gate evidence collection + packet persistence
+    └── cli.py          theta-signals entrypoint
 tests/              recorded-fixture replay tests (no live API)
 ```
 

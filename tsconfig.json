@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@nbe-theta/execution-domain": ["./packages/execution-domain/src/index.ts"]
     }
   },
   "include": [
@@ -27,6 +28,7 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "scripts/**/*.ts",
+    "apps/**/*.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "*.mts"
