@@ -12,14 +12,22 @@ import { serverClient } from "@/lib/supabase/client";
  *   2. the executor's three-flag env gate
  *      (EXECUTION_PROVIDER=polymarket-clob && POLYMARKET_LIVE=true
  *      && CONFIRM_LIVE=YES),
- *   3. a documented legal/compliance approval for the operating
- *      jurisdiction,
- *   4. the shadow gate passed.
+ *   3. the shadow gate passed — a recorded `shadow_gate_runs` row with
+ *      verdict 'pass' (PR 11 / ADR-0003),
+ *   4. a documented legal/compliance approval for the operating
+ *      jurisdiction.
  *
- * The route enforces (1) and refuses to pretend about the rest: it
- * returns the flags it can observe so the console can show an operator
- * exactly which conditions are unmet, rather than flipping a switch that
- * appears to work and silently does nothing.
+ * The route now enforces (1), (2) and (3). Until PR 11 it enforced only
+ * (1) and (2) and *documented* (3), which is the weaker arrangement:
+ * the shadow gate is the condition most likely to be skipped, because
+ * skipping it looks like impatience rather than like disabling a safety
+ * check. A comment cannot refuse.
+ *
+ * (4) is still a human judgement and is deliberately not modelled as a
+ * boolean here. A checkbox labelled "compliance approved" is worse than
+ * an honest gap: it would let one click stand in for a legal opinion
+ * about a specific jurisdiction, and it would look identical whether or
+ * not anyone had read one.
  *
  * The two-step confirmation is a genuine second decision, not a
  * checkbox: the caller must send `confirm: "ENABLE-LIVE"` alongside the
@@ -48,6 +56,34 @@ function envGate() {
   };
 }
 
+interface GateRow {
+  id: string;
+  evaluated_at: string;
+  window_start: string;
+  window_end: string;
+}
+
+/**
+ * The most recent passing shadow-gate packet, or null.
+ *
+ * Fails CLOSED on a query error. A database that cannot answer "has the
+ * gate passed?" has not answered "yes", and treating an error as
+ * permission would make an outage the easiest way past the check.
+ */
+async function passingGate(
+  sb: NonNullable<ReturnType<typeof serverClient>>,
+): Promise<GateRow | null> {
+  const { data, error } = await sb
+    .from("shadow_gate_runs")
+    .select("id, evaluated_at, window_start, window_end")
+    .eq("verdict", "pass")
+    .order("evaluated_at", { ascending: false })
+    .limit(1);
+  if (error) return null;
+  const rows = (data ?? []) as unknown as GateRow[];
+  return rows[0] ?? null;
+}
+
 export async function GET(req: Request) {
   const auth = requireOperator(req);
   if (!auth.ok) return auth.response;
@@ -64,7 +100,13 @@ export async function GET(req: Request) {
     .single();
   if (error) return NextResponse.json({ ok: false, reason: error.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, state: data, envGate: envGate() });
+  const gate = await passingGate(sb);
+  return NextResponse.json({
+    ok: true,
+    state: data,
+    envGate: envGate(),
+    shadowGate: { passed: gate !== null, run: gate },
+  });
 }
 
 export async function POST(req: Request) {
@@ -78,6 +120,10 @@ export async function POST(req: Request) {
 
   const body = (await req.json()) as Body;
   const mode = body.mode;
+  // Carried out of the live branch so the audit row can name the exact
+  // packet that authorised the promotion. "The gate passed" is not an
+  // auditable claim; "gate run <id>, window <start>–<end>" is.
+  let authorisingGate: GateRow | null = null;
   if (!mode || !MODES.has(mode)) {
     return NextResponse.json(
       { ok: false, reason: "mode must be paused | shadow | live" },
@@ -110,6 +156,31 @@ export async function POST(req: Request) {
         { status: 409 },
       );
     }
+
+    // The shadow gate. Checked LAST of the machine-checkable conditions
+    // because it is the expensive query, and checked at all because
+    // ADR-0002's whole promotion argument rests on it: thirty days, a
+    // hundred qualified signals, net-positive after modelled costs, p95
+    // detection under ninety seconds, zero duplicates, zero unresolved
+    // incidents. `theta-signals gate --record` writes the packet.
+    //
+    // Note what is required: a packet whose verdict is 'pass'. A packet
+    // whose verdict is 'insufficient_evidence' does not count, which is
+    // the entire reason that third state exists — see
+    // python/nbe_theta/signals/gate.py.
+    authorisingGate = await passingGate(sb);
+    if (authorisingGate === null) {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason:
+            "no passing shadow-gate run recorded; live refused. " +
+            "Run `theta-signals gate --record` and promote only on a 'pass' verdict.",
+          shadowGate: { passed: false, run: null },
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const now = new Date().toISOString();
@@ -134,8 +205,13 @@ export async function POST(req: Request) {
   await sb.from("operator_actions").insert({
     actor,
     action: "mode_change",
-    detail: { mode, envGate: envGate() },
+    detail: { mode, envGate: envGate(), shadowGateRun: authorisingGate },
   });
 
-  return NextResponse.json({ ok: true, state: data, envGate: envGate() });
+  return NextResponse.json({
+    ok: true,
+    state: data,
+    envGate: envGate(),
+    shadowGate: { passed: authorisingGate !== null, run: authorisingGate },
+  });
 }

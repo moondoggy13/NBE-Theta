@@ -14,7 +14,7 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 | `theta-score-wallets` | PR 5 | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
 | `theta-market-data` | PR 6 | `run`: stream the CLOB book for watchlisted markets into `market_quotes`, REST-resyncing after any gap. `backfill`: fill quote history from `/prices-history`. `snapshot`: print one book. |
 | `theta-cohort` | PR 7 | `classify-events`: sports / non-sports, fail-closed. `cluster`: group wallets that trade as one entity. `select-cohort`: apply eligibility vetoes, promote a bounded feeder set. `show`: the cohort and why. `budget`: polling arithmetic. |
-| `theta-signals` | **PR 8 (this)** | `summary`: shadow-gate fill rate + rejection histogram. `policy`: active qualification and risk thresholds. |
+| `theta-signals` | PR 8, **PR 11 (this)** | `summary`: shadow-gate fill rate + rejection histogram. `gate`: the 30-day / 100-signal promotion decision packet — `--record` persists it, and only a persisted `pass` lets `/api/console/mode` go live. `policy`: active qualification and risk thresholds. |
 | … | later | ledger, graph, backtest, chain-enricher. |
 
 ## Layout
@@ -57,6 +57,8 @@ signals/
     ├── shadow.py       bounded FOK against the observed book
     ├── pipeline.py     action → gates → sizing → shadow → lot
     ├── store.py        signal-layer persistence
+    ├── gate.py         promotion criteria (pure); three outcomes, not two
+    ├── gate_store.py   gate evidence collection + packet persistence
     └── cli.py          theta-signals entrypoint
 tests/              recorded-fixture replay tests (no live API)
 ```

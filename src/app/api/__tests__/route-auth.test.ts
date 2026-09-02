@@ -51,6 +51,7 @@ const GUARDED_GETS = [
   ["console/portfolio", () => import("../console/portfolio/route")],
   ["console/health", () => import("../console/health/route")],
   ["console/mode", () => import("../console/mode/route")],
+  ["console/gate", () => import("../console/gate/route")],
 ] as const;
 
 function get(path: string, auth?: string): Request {
