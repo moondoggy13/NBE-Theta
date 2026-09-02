@@ -48,7 +48,9 @@ declare
     -- 015
     'event_classifications', 'wallet_copyability_snapshots',
     'wallet_clusters', 'wallet_cluster_members', 'scoring_policies',
-    'wallet_cohort'
+    'wallet_cohort',
+    -- 016
+    'source_actions', 'signal_evaluations', 'strategy_lots', 'shadow_fills'
   ];
   rls boolean;
 begin
@@ -91,7 +93,9 @@ declare
     -- 015: alpha internals + the policy control plane.
     'event_classifications', 'wallet_copyability_snapshots',
     'wallet_clusters', 'wallet_cluster_members', 'scoring_policies',
-    'wallet_cohort'
+    'wallet_cohort',
+    -- 016: alpha internals + the simulated portfolio.
+    'source_actions', 'signal_evaluations', 'strategy_lots', 'shadow_fills'
   ];
   n int;
 begin

@@ -33,6 +33,7 @@ theta-score-wallets = "nbe_theta.analytics.cli:app"
 theta-live-monitor = "nbe_theta.ingest.monitor_cli:app"
 theta-market-data = "nbe_theta.ingest.market_cli:app"
 theta-cohort = "nbe_theta.analytics.cohort_cli:app"
+theta-signals = "nbe_theta.signals.cli:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -63,6 +64,7 @@ select = ["E", "F", "W", "I", "UP", "B"]
 "nbe_theta/ingest/monitor_cli.py" = ["B008"]
 "nbe_theta/ingest/market_cli.py" = ["B008"]
 "nbe_theta/analytics/cohort_cli.py" = ["B008"]
+"nbe_theta/signals/cli.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.11"
