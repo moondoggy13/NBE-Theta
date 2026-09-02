@@ -5,11 +5,13 @@ measure their forecasting edge against the prices they actually paid,
 and — only after that edge survives out-of-sample validation — mirror it
 through an independently risk-gated executor.
 
-> **Status — research/paper only. No live trading.** The Intelligence
-> and Signal layers are built and tested; the Execution layer is not
-> written yet. The alpha hypothesis has **not** been validated against
-> real data (see "The alpha gate" below), and live CLOB execution stays
-> off behind a three-flag gate until it is.
+> **Status — research/shadow only. No live trading.** All three layers
+> are built and tested, but the executor has never sent an order to a
+> venue: it runs against a CLOB simulator, and the live adapter refuses
+> to construct unless three environment flags are set together. The alpha
+> hypothesis has **not** been validated against real data (see "The alpha
+> gate" below), and nothing goes live before that, a passed shadow gate,
+> and a documented compliance review.
 
 The pre-pivot BTC/Coinbase system has been **deleted** from this
 repository. It survives only behind the git tag `btc-v1-final`. See
@@ -21,7 +23,7 @@ repository. It survives only behind the git tag `btc-v1-final`. See
 |---|---|---|
 | **Intelligence** — market registry, wallet discovery, trade history, live position + leaderboard monitoring, CLOB market data, (later) chain enrichment | `python/nbe_theta/{ingest,ledger}` | built |
 | **Signal** — position reconstruction, skill scoring, significance, tiering, walk-forward | `python/nbe_theta/{analytics,backtest}` | built |
-| **Execution** — durable intent outbox, CLOB adapter, portfolio risk, reconciliation | `apps/executor` | **not built** (PR 8) |
+| **Execution** — per-instrument locks, durable intent outbox, CLOB simulator, reconciliation | `apps/executor`, `packages/execution-domain` | built, **shadow only** |
 
 Supporting: `packages/contracts` (Pydantic → JSON Schema → TypeScript,
 the single source of truth for durable payloads), `supabase/migrations`
@@ -72,9 +74,13 @@ lift (selected − universe baseline)
 ```
 
 **A non-positive lift means wallet selection adds nothing over trading
-everyone, and that is a stop** — replan before investing in the chain
-indexer (PR 7) or the execution stack (PR 8). Building this measurement
-*before* the expensive infrastructure is the point.
+everyone, and that is a stop.** It has still not been run against real
+data — every Polymarket host is unreachable from CI — so the whole stack
+below it remains an instrument awaiting its measurement.
+
+The second, equally decisive number is the **qualified-signal fill rate**
+from `theta-signals summary`: copying is a latency race, and identifying
+a good trader is worth nothing if we cannot get their price.
 
 ## What the scoring layer refuses to do
 

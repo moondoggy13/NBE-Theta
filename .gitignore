@@ -4,7 +4,9 @@
 # Unanchored: pnpm workspaces put a node_modules (with symlinks back into
 # packages/) under every app and package, not just the root. The old
 # `/node_modules` only matched the root one, which is how a workspace
-# symlink got committed in #14.
+# symlink got committed in #14. This subsumes the `apps/*/node_modules`
+# and `packages/*/node_modules` globs this branch had added — those only
+# covered one level of nesting each.
 node_modules/
 /.pnp
 .pnp.*
