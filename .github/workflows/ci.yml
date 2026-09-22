@@ -225,33 +225,56 @@ jobs:
       # Run once, then assert it actually ran. A skip means the queries
       # were never executed against the schema, and the job would go
       # green on nothing — the precise failure this test exists to stop.
+      # Asserted from vitest's JSON reporter, never from its pretty
+      # output. An earlier version grepped the human summary for
+      # "Tests N passed" and failed the job even though every test
+      # passed: under CI=true vitest colourises that line, so the
+      # regex was matching against `Tests ^[[22m ^[[1m^[[32m17 passed`.
+      # A guard that scrapes formatted text is a guard that reports on
+      # the formatting.
       - name: Outbox against real Postgres
         run: |
           set +e
-          out="$(pnpm test:outbox 2>&1)"
+          pnpm exec vitest run \
+            apps/executor/src/__tests__/risk-gate-outbox-postgres.test.ts \
+            --no-coverage --reporter=default --reporter=json \
+            --outputFile=outbox-results.json
           rc=$?
           set -e
-          echo "$out"
 
-          # Surface the failure as an ANNOTATION, not just log text. The
-          # Postgres service container dumps its whole startup log at
-          # teardown, which swamps the tail of the job log, and the raw
-          # log archive is not always reachable. An annotation is
-          # retrievable on its own and keeps a failure here diagnosable.
-          if [ "$rc" -ne 0 ]; then
-            detail="$(printf '%s' "$out" | tail -n 40 | sed ':a;N;$!ba;s/\n/%0A/g')"
-            echo "::error title=Outbox integration test failed::${detail}"
-            exit 1
-          fi
-
-          echo "$out" | grep -qE "Tests +[0-9]+ passed" || {
-            echo "::error::outbox integration test reported no passing tests"
-            exit 1
-          }
-          if echo "$out" | grep -q "skipped"; then
-            echo "::error::outbox integration test skipped; DATABASE_URL not seen in this job"
-            exit 1
-          fi
+          node -e '
+            const fs = require("node:fs");
+            const rc = Number(process.argv[1]);
+            let r;
+            try {
+              r = JSON.parse(fs.readFileSync("outbox-results.json", "utf8"));
+            } catch (e) {
+              console.log("::error::outbox test produced no JSON result: " + e.message);
+              process.exit(1);
+            }
+            const { numPassedTests: p = 0, numFailedTests: f = 0, numPendingTests: s = 0 } = r;
+            console.log(`outbox: ${p} passed, ${f} failed, ${s} skipped (exit ${rc})`);
+            // A skip here means DATABASE_URL never reached the test and
+            // the queries were never executed — green on nothing, which
+            // is the failure this test exists to prevent.
+            if (s > 0) {
+              console.log("::error::outbox test skipped; DATABASE_URL not seen in this job");
+              process.exit(1);
+            }
+            if (p === 0) {
+              console.log("::error::outbox test ran no tests");
+              process.exit(1);
+            }
+            if (f > 0 || rc !== 0) {
+              const names = (r.testResults ?? [])
+                .flatMap((t) => t.assertionResults ?? [])
+                .filter((a) => a.status === "failed")
+                .map((a) => `${a.fullName}: ${(a.failureMessages ?? []).join(" | ")}`)
+                .join("%0A");
+              console.log(`::error title=Outbox integration test failed::${names || "see log"}`);
+              process.exit(1);
+            }
+          ' "$rc"
 
   security:
     name: Security

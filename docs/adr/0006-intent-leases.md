@@ -97,6 +97,13 @@ The job asserts the test *ran*. Without `DATABASE_URL` it self-skips,
 and a silently-skipped integration test reads as green — a worse outcome
 than not having one.
 
+That assertion reads vitest's **JSON reporter**, not its human summary.
+The first version grepped the pretty output for `Tests N passed` and
+failed the job while every test passed: under `CI=true` vitest
+colourises that line, so the regex was matching against
+`Tests ^[[22m ^[[1m^[[32m17 passed`. A guard that scrapes formatted text
+ends up reporting on the formatting.
+
 ## Consequences
 
 - **Positive**: a crashed executor no longer loses work. The recovery
