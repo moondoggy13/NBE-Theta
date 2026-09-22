@@ -157,6 +157,31 @@ Related invariants:
   stored `true` looks identical whether or not anyone read a legal
   opinion.
 
+## The intent outbox (PR 14) — a claim is a lease
+
+`CLAIM_SQL` commits `status='claimed'` and only ever selects rows
+`where status='ready'`. A worker that dies after claiming therefore
+strands its intent where nothing will look at it again — silently, which
+for copy trading means believing a wallet is mirrored while it is not.
+
+- **`FOR UPDATE SKIP LOCKED` does not protect a committed claim.** The
+  lock is gone once the claim commits; what stops a second worker is the
+  status value. Do not reintroduce the old docstring's claim that a
+  dying worker "releases its lock" — that is true only before commit.
+- **The reaper is conservative on purpose.** It touches only
+  `status='claimed'`, only expired leases, and applies backoff.
+  Reclaiming under a live worker dispatches the same order twice, which
+  is the v2 failure class and worse than the stranding it fixes. Scoping
+  to `claimed` excludes `reconciliation_break` and every terminal status
+  by construction — do not replace that with a list of statuses to skip.
+- **`LEASE_SECONDS` must exceed the longest legitimate work time**, and
+  `assertLeaseExceedsWork` enforces it at startup rather than leaving it
+  to a comment.
+- **The outbox SQL is executed against a real schema in CI**, in the
+  `database` job, and the test **imports** the query strings. A test with
+  pasted SQL would pass while the executor's SQL was broken. The job also
+  asserts the test did not skip.
+
 ## The alpha gate (PR 13) — same discipline as the shadow gate
 
 `python/nbe_theta/backtest/alpha_gate.py` judges the walk-forward run,

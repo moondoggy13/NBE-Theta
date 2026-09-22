@@ -204,6 +204,35 @@ jobs:
       - name: Schema smoke assertions
         run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/db-smoke.sql
 
+      # The outbox integration test lives HERE, not in the typescript
+      # job, because it is the only job with a database. It self-skips
+      # without DATABASE_URL, so running it anywhere else would report a
+      # silently-green integration test — which is worse than not having
+      # one. `--no-coverage` keeps this focused run from tripping the
+      # repo-wide coverage thresholds on a single file.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Run once, then assert it actually ran. A skip means the queries
+      # were never executed against the schema, and the job would go
+      # green on nothing — the precise failure this test exists to stop.
+      - name: Outbox against real Postgres
+        run: |
+          out="$(pnpm test:outbox 2>&1)"
+          echo "$out"
+          echo "$out" | grep -qE "Tests +[0-9]+ passed" || {
+            echo "::error::outbox integration test reported no passing tests" >&2
+            exit 1
+          }
+          if echo "$out" | grep -q "skipped"; then
+            echo "::error::outbox integration test skipped; DATABASE_URL not seen in this job" >&2
+            exit 1
+          fi
+
   security:
     name: Security
     runs-on: ubuntu-latest
