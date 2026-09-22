@@ -82,6 +82,17 @@ async function claim(worker: string, limit: number, lease = LEASE_SECONDS) {
   return rows as { id: string; attempt_count: number }[];
 }
 
+/**
+ * A lease that is unambiguously in the past.
+ *
+ * Zero would set `lease_expires_at` to the claiming transaction's
+ * `now()`, leaving the reaper's `lease_expires_at < now()` to depend on
+ * the next transaction's clock being strictly later. That holds in
+ * practice but it is a timing assumption inside a test whose job is to
+ * prove a safety property, so it is removed rather than relied on.
+ */
+const ALREADY_EXPIRED = -5;
+
 async function statusOf(id: string): Promise<string> {
   const { rows } = await db.query("select status from execution_intents where id = $1", [id]);
   return rows[0].status as string;
@@ -204,7 +215,7 @@ describeDb("the reaper recovers stranded claims", () => {
     // `claimed` where CLAIM_SQL (which selects only `ready`) will never
     // look at it again.
     const [id] = await seed(1);
-    await claim("doomed-worker", 10, 0); // lease expires immediately
+    await claim("doomed-worker", 10, ALREADY_EXPIRED);
     expect(await statusOf(id)).toBe("claimed");
 
     const { rows } = await db.query(RECLAIM_SQL, ["0"]);
@@ -217,7 +228,7 @@ describeDb("the reaper recovers stranded claims", () => {
 
   it("records why an intent was reclaimed, naming the worker that lost it", async () => {
     const [id] = await seed(1);
-    await claim("doomed-worker", 10, 0);
+    await claim("doomed-worker", 10, ALREADY_EXPIRED);
     await db.query(RECLAIM_SQL, ["0"]);
     const { rows } = await db.query("select last_error from execution_intents where id = $1", [id]);
     expect(rows[0].last_error).toMatch(/doomed-worker/);
@@ -235,7 +246,7 @@ describeDb("the reaper recovers stranded claims", () => {
     // Without this, an intent that crashes its worker crashes the next
     // one too and the reaper turns one poison message into a hot loop.
     const [id] = await seed(1);
-    await claim("w1", 10, 0);
+    await claim("w1", 10, ALREADY_EXPIRED);
     await db.query(RECLAIM_SQL, ["60"]);
     const { rows } = await db.query(
       "select available_at > now() as deferred from execution_intents where id = $1",

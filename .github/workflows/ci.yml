@@ -227,14 +227,29 @@ jobs:
       # green on nothing — the precise failure this test exists to stop.
       - name: Outbox against real Postgres
         run: |
+          set +e
           out="$(pnpm test:outbox 2>&1)"
+          rc=$?
+          set -e
           echo "$out"
+
+          # Surface the failure as an ANNOTATION, not just log text. The
+          # Postgres service container dumps its whole startup log at
+          # teardown, which swamps the tail of the job log, and the raw
+          # log archive is not always reachable. An annotation is
+          # retrievable on its own and keeps a failure here diagnosable.
+          if [ "$rc" -ne 0 ]; then
+            detail="$(printf '%s' "$out" | tail -n 40 | sed ':a;N;$!ba;s/\n/%0A/g')"
+            echo "::error title=Outbox integration test failed::${detail}"
+            exit 1
+          fi
+
           echo "$out" | grep -qE "Tests +[0-9]+ passed" || {
-            echo "::error::outbox integration test reported no passing tests" >&2
+            echo "::error::outbox integration test reported no passing tests"
             exit 1
           }
           if echo "$out" | grep -q "skipped"; then
-            echo "::error::outbox integration test skipped; DATABASE_URL not seen in this job" >&2
+            echo "::error::outbox integration test skipped; DATABASE_URL not seen in this job"
             exit 1
           fi
 
