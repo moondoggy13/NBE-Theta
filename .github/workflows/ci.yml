@@ -210,7 +210,12 @@ jobs:
       # silently-green integration test — which is worse than not having
       # one. `--no-coverage` keeps this focused run from tripping the
       # repo-wide coverage thresholds on a single file.
+      # `version` is required: package.json has no `packageManager`
+      # field, so the action has nothing to infer from and errors out
+      # without it. Matches the contracts and typescript jobs.
       - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
