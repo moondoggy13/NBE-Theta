@@ -10,11 +10,11 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:outbox": "vitest run apps/executor/src/__tests__/risk-gate-outbox-postgres.test.ts --no-coverage",
     "contracts:generate": "pnpm --filter @nbe-theta/contracts generate",
     "contracts:check": "pnpm --filter @nbe-theta/contracts check",
     "migrate": "bash scripts/migrate.sh",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:executor-db": "vitest run --no-coverage --reporter=default apps/executor/src/__tests__/risk-gate-outbox-postgres.test.ts apps/executor/src/__tests__/store.postgres.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
