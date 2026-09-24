@@ -10,6 +10,21 @@ Order is cheapest-first and fail-fast on cost, not on correctness: gates
 run before sizing because a rejected signal should not cost a portfolio
 read, but *every* gate is still evaluated so the console shows the whole
 picture.
+
+**`mode` changes where the decision goes, not just how it is labelled.**
+
+* `shadow` — the shadow broker prices the order against the book we
+  observed and a shadow lot is opened. This is a *measurement*,
+  deliberately pessimistic, and it is the evidence the shadow gate
+  consumes (ADR-0003).
+* `live` — evaluation stops after sizing. The order is the executor's
+  to place, so `record_evaluation` enqueues an execution intent in the
+  same transaction and the lot is opened later from the fill the venue
+  actually reports.
+
+Before PR 15 `mode` only tagged the lot, so live would have simulated a
+fill and recorded a position the account did not hold. See
+`nbe_theta/signals/intents.py`.
 """
 
 from __future__ import annotations
@@ -113,6 +128,25 @@ def evaluate_action(
     )
     ev.size = size
     if not size.actionable:
+        return ev
+
+    if mode == "live":
+        # Live stops here, and that is the fix rather than an omission.
+        #
+        # Until PR 15 this function ran the shadow broker in EVERY mode
+        # and used `mode` only to label the lot. In live that meant:
+        # simulate a fill against the observed book, open a lot tagged
+        # `live` priced from that simulation, and never place an order —
+        # recording positions the account does not hold. A book that
+        # lies about what it owns is worse than one that is empty,
+        # because every downstream cap, drawdown check and exposure
+        # number is then computed against fiction.
+        #
+        # In live the order is the executor's to place. What this
+        # function produces is the *decision*; `record_evaluation`
+        # enqueues it onto the outbox in the same transaction, and the
+        # lot is opened later from the fill the venue actually reports.
+        ev.notes["live_intent_pending"] = True
         return ev
 
     fill = simulate(
