@@ -232,11 +232,12 @@ jobs:
       # regex was matching against `Tests ^[[22m ^[[1m^[[32m17 passed`.
       # A guard that scrapes formatted text is a guard that reports on
       # the formatting.
-      - name: Outbox against real Postgres
+      - name: Executor against real Postgres
         run: |
           set +e
           pnpm exec vitest run \
             apps/executor/src/__tests__/risk-gate-outbox-postgres.test.ts \
+            apps/executor/src/__tests__/store.postgres.test.ts \
             --no-coverage --reporter=default --reporter=json \
             --outputFile=outbox-results.json
           rc=$?

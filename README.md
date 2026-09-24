@@ -197,6 +197,8 @@ Also:
   is a lease, and what a crashed worker used to cost
 - `docs/adr/0007-intent-producer.md` — closing the Python → TypeScript
   seam, and why live enqueues rather than simulates
+- `docs/adr/0008-wire-domain-boundary.md` — why the wire payload and the
+  executor's intent are different types, and what crosses between them
 - `AGENTS.md` — development contract (boundaries, migrations, tests, don'ts)
 - `CLAUDE.md` — repo navigation + what never to reintroduce
 - `python/README.md` — worker commands and layout

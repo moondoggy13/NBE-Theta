@@ -157,6 +157,51 @@ Related invariants:
   stored `true` looks identical whether or not anyone read a legal
   opinion.
 
+## The wire/domain boundary (PR 16) — two shapes, one crossing
+
+The outbox payload and the executor's in-memory intent are **different
+types with no field names in common**: the contract is snake_case with
+`intent_id`, `account_id`, `signal_id`, `strategy_type`, `venue`,
+`schema_version`; `packages/execution-domain` is camelCase with
+`clientIntentId` and none of the rest. Reading one as the other gives
+`undefined` for every field, price and quantity included.
+
+- **Everything crossing goes through `apps/executor/src/boundary.ts`.**
+  Do not read a claimed payload directly as a domain `OrderIntent`, and
+  do not "fix" the mismatch by renaming the execution layer — the domain
+  type is deliberately narrower, and giving a venue adapter `signal_id`
+  or `strategy_type` invites strategy logic into execution.
+- **A field added to the contract must be added to the boundary**, or it
+  is silently dropped. The boundary tests are what fail when it is not.
+- **`schema_version` is validated there**, as AGENTS.md requires of
+  every consumer. Nothing else in the repo validates it.
+- **An ambiguous submit (`status: "unknown"`) never becomes a
+  `venue_orders` row.** That row asserts an order exists, which is
+  exactly what is unknown; it opens a `reconciliation_breaks` row
+  instead. Migration 021 constrains the column so the schema refuses it
+  too.
+- **`filled_quantity` is a SUM over `venue_fills`, never an increment.**
+  An increment double-counts a redelivered fill, and a position that
+  reads larger than it is, is the v2 failure shape and is silent.
+  Events are append-only; the order row is a projection.
+- **Still missing**: no live `strategy_lots` row is opened from a real
+  fill, and there is still no executor `main()`. See ADR-0008.
+
+## Database tests clean up AFTER, not only before
+
+Both languages' integration suites run against one database, and two of
+them read tables the other writes. A suite that cleans only on the way
+in leaves its last test's rows behind, and something else counts them —
+`reconciliation_breaks` in particular, because the shadow gate's
+`zero_unresolved_incidents` is deliberately not scoped to a window, so
+a break left by an executor test fails a Python gate test.
+
+CI hides this: it always starts from a fresh database. Reproduce it by
+running a suite **twice** against the same one, and by running the
+executor and Python suites back to back. Scope the cleanup to rows the
+suite actually wrote (a marker column, not a `like '%word%'` on a
+description), and run it in teardown as well as setup.
+
 ## The execution seam (PR 15) — live enqueues, it does not simulate
 
 `python/nbe_theta/signals/intents.py` is the producer half of the outbox

@@ -41,6 +41,25 @@ def _clean(conn: Any) -> None:
     conn.commit()
 
 
+@pytest.fixture(autouse=True)
+def _leave_the_table_as_found() -> Any:
+    """Clean AFTER as well as before.
+
+    These tests cleaned only at the start, so the last one in the file
+    left its rows behind. That is invisible in CI, which always starts
+    from a fresh database, and reproducible locally by running the suite
+    twice: `test_shadow_gate_postgres` then counts those rows, because
+    `gate_store.collect` correctly reads every source action in the
+    window rather than only this module's. A shared table has to be left
+    as found.
+    """
+
+    yield
+    if os.environ.get("DATABASE_URL"):
+        with connect(os.environ["DATABASE_URL"]) as conn:
+            _clean(conn)
+
+
 def _action(qty: str = "1000", detected_offset: int = 20):  # type: ignore[no-untyped-def]
     fill = Fill(
         wallet=WALLET,
