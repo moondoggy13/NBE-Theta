@@ -87,16 +87,22 @@ def test_trade_dropped_when_required_fields_missing_or_invalid() -> None:
 
 
 def test_leaderboard_entry_parsing() -> None:
-    e = parse_leaderboard_entry({"proxyWallet": "0xAbC", "amount": "100.5"}, metric="pnl")
+    mixed = "0xAbC1000000000000000000000000000000000001"
+    e = parse_leaderboard_entry({"proxyWallet": mixed, "amount": "100.5"}, metric="pnl")
     assert e is not None
-    assert e.wallet == "0xabc"
+    assert e.wallet == mixed.lower()  # one wallet, one identity
     assert e.amount == Decimal("100.5")
     assert parse_leaderboard_entry({"amount": "1"}, metric="pnl") is None
+    # A non-address must not become a candidate row.
+    assert parse_leaderboard_entry({"proxyWallet": "0xAbC", "amount": "1"}, metric="pnl") is None
 
 
 def test_holder_parsing() -> None:
-    h = parse_holder({"proxyWallet": "0xAbC", "asset": "tok", "amount": "500"}, "0xcond")
+    holder = "0xAbC1000000000000000000000000000000000001"
+    h = parse_holder({"proxyWallet": holder, "asset": "tok", "amount": "500"}, "0xcond")
     assert h is not None
+    assert h.wallet == holder.lower()
     assert h.condition_id == "0xcond"
     assert h.shares == Decimal("500")
     assert parse_holder({"amount": "1"}, "0xcond") is None
+    assert parse_holder({"proxyWallet": "0xAbC", "amount": "1"}, "0xcond") is None

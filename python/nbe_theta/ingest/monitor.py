@@ -32,27 +32,21 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import partial
-from typing import Literal, TypeVar
-
-from nbe_theta_contracts import VenueTrade, WalletPositionSnapshot
-from pydantic import ValidationError
+from typing import TypeVar
 
 from nbe_theta.common.logging import get_logger
 from nbe_theta.ingest.archive import Archive
-from nbe_theta.ingest.dataapi import DataApiClient, ParsedTrade
+from nbe_theta.ingest.dataapi import PARSER_VERSION as TRADES_PARSER_VERSION
+from nbe_theta.ingest.dataapi import DataApiClient
 from nbe_theta.ingest.intel_store import IntelStore, LeaderboardRow
 from nbe_theta.ingest.positions import PARSER_VERSION as POSITIONS_PARSER_VERSION
 from nbe_theta.ingest.positions import ParsedPosition, PositionsClient
 from nbe_theta.ingest.ratelimit import RateLimiter
+from nbe_theta.ingest.validation import validate_position, validate_trade
 from nbe_theta.ingest.wallet_store import WalletStore
 
 log = get_logger("ingest.monitor")
 
-# dataapi.VENUE is a plain str; the contracts need the Literal so the
-# producer side is checked as strictly as the wire schema.
-VENUE: Literal["polymarket"] = "polymarket"
-
-TRADES_PARSER_VERSION = "data-api-1"
 STREAM_LEADERBOARD = "leaderboard"
 
 NowFn = Callable[[], datetime]
@@ -109,69 +103,6 @@ def merge_watermark(cursor: str | None, watermark: datetime) -> str:
             payload = {}
     payload["watermark"] = watermark.isoformat()
     return json.dumps(payload)
-
-
-# ── contract validation ───────────────────────────────────────────
-
-
-def validate_trade(t: ParsedTrade, raw_id: uuid.UUID) -> bool:
-    try:
-        VenueTrade(
-            venue=VENUE,
-            source_trade_id=t.source_trade_id,
-            wallet=t.wallet,
-            condition_id=t.condition_id,
-            outcome_token_id=t.outcome_token_id,
-            side=t.side,  # type: ignore[arg-type]
-            price=t.price,
-            quantity=t.quantity,
-            notional=t.notional,
-            occurred_at=t.occurred_at,
-            tx_hash=t.tx_hash,
-            maker_taker=t.maker_taker,  # type: ignore[arg-type]
-            raw_object_id=raw_id,
-        )
-    except ValidationError as e:
-        log.warning("trade failed contract validation", trade=t.source_trade_id, error=str(e))
-        return False
-    return True
-
-
-def validate_position(p: ParsedPosition, captured_at: datetime) -> bool:
-    try:
-        WalletPositionSnapshot(
-            venue=VENUE,
-            wallet=p.wallet,
-            condition_id=p.condition_id,
-            outcome_token_id=p.outcome_token_id,
-            outcome_name=p.outcome_name,
-            outcome_index=p.outcome_index,
-            size=p.size,
-            avg_price=p.avg_price,
-            cur_price=p.cur_price,
-            initial_value=p.initial_value,
-            current_value=p.current_value,
-            cash_pnl=p.cash_pnl,
-            percent_pnl=p.percent_pnl,
-            realized_pnl=p.realized_pnl,
-            total_bought=p.total_bought,
-            redeemable=p.redeemable,
-            neg_risk=p.neg_risk,
-            title=p.title,
-            slug=p.slug,
-            event_slug=p.event_slug,
-            end_date=p.end_date,
-            captured_at=captured_at,
-        )
-    except ValidationError as e:
-        log.warning(
-            "position failed contract validation",
-            wallet=p.wallet,
-            token=p.outcome_token_id,
-            error=str(e),
-        )
-        return False
-    return True
 
 
 # ── config + results ──────────────────────────────────────────────

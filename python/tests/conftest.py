@@ -73,6 +73,7 @@ class RecordedDataApiFetcher:
         leaderboard: list[dict[str, Any]] | None = None,
         holders: list[dict[str, Any]] | None = None,
         positions: list[dict[str, Any]] | None = None,
+        recent_trades: list[dict[str, Any]] | None = None,
         fail_after: int | None = None,
         fail_paths: set[str] | None = None,
     ) -> None:
@@ -80,6 +81,8 @@ class RecordedDataApiFetcher:
         self.leaderboard = leaderboard or []
         self.holders = holders or []
         self.positions = positions or []
+        # The global tape: /trades with no `user` param.
+        self.recent_trades = recent_trades or []
         self.fail_after = fail_after
         # Paths that always raise — used to prove one failing phase
         # never aborts the monitor tick.
@@ -96,6 +99,8 @@ class RecordedDataApiFetcher:
             offset = int(params["offset"])
             window = self.positions[offset : offset + limit]
             return window, json.dumps(window).encode("utf-8")
+        if path == "/trades" and "user" not in params:
+            return self.recent_trades, json.dumps(self.recent_trades).encode("utf-8")
         if path == "/trades":
             self.trade_calls += 1
             if self.fail_after is not None and self.trade_calls > self.fail_after:
@@ -127,6 +132,11 @@ def leaderboard_rows() -> list[dict[str, Any]]:
 @pytest.fixture
 def holder_rows() -> list[dict[str, Any]]:
     return load_fixture("dataapi_holders.json")
+
+
+@pytest.fixture
+def tape_rows() -> list[dict[str, Any]]:
+    return load_fixture("dataapi_tape.json")
 
 
 @pytest.fixture
