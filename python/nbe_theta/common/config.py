@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     data_api_timeout_s: float = Field(default=30.0, alias="DATA_API_TIMEOUT_S", gt=0)
     # Minimum seconds between Data API calls (per-source rate-limit budget).
     data_api_min_interval_s: float = Field(default=0.2, alias="DATA_API_MIN_INTERVAL_S", ge=0)
+    # Global-tape candidate seeding (theta-wallet-backfill seed).
+    tape_min_usd: float = Field(default=500.0, alias="TAPE_MIN_USD", ge=0)
+    tape_limit: int = Field(default=100, alias="TAPE_LIMIT", ge=1, le=500)
 
     # Live monitor (theta-live-monitor) cadences.
     monitor_interval_s: float = Field(default=30.0, alias="MONITOR_INTERVAL_S", gt=0)

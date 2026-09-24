@@ -21,6 +21,7 @@ from nbe_theta.common.logging import get_logger
 from nbe_theta.ingest.archive import Archive
 from nbe_theta.ingest.dataapi import PARSER_VERSION, DataApiClient
 from nbe_theta.ingest.ratelimit import RateLimiter
+from nbe_theta.ingest.validation import validate_trade
 from nbe_theta.ingest.wallet_store import WalletStore
 
 log = get_logger("ingest.backfill")
@@ -105,6 +106,10 @@ class WalletBackfillIngestor:
                     captured_at=_now(),
                 )
                 for t in trades:
+                    # Contract gate: a row that fails validation is
+                    # dropped, not written (see ingest.validation).
+                    if not validate_trade(t, raw_id):
+                        continue
                     if self._store.upsert_trade(t, raw_id):
                         written += 1
                     min_ts = t.occurred_at if min_ts is None else min(min_ts, t.occurred_at)

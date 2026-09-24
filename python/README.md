@@ -9,7 +9,7 @@ http). See `docs/adr/0001-polymarket-pivot.md`.
 | Command | Status | What it does |
 |---|---|---|
 | `theta-registry` | PR 3 | Sweep the Gamma API → normalize markets/events/outcomes → version resolution rules → archive raw pages. |
-| `theta-wallet-backfill` | PR 4 | `seed`: discover candidates (leaderboards, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
+| `theta-wallet-backfill` | PR 4 | `seed`: discover candidates (leaderboards, global large-trade tape, top holders) → promote by materiality. `run`: backfill Data API trade history into `venue_trades`. |
 | `theta-live-monitor` | PR 4b | Always-on loop: watchlist trade sync, position snapshots, leaderboard sweeps, heartbeats. |
 | `theta-score-wallets` | PR 5 | `score --as-of`: ledger → episodes → skill metrics → tiers. `walkforward`: rolling out-of-sample evaluation (the alpha gate). |
 | `theta-market-data` | PR 6 | `run`: stream the CLOB book for watchlisted markets into `market_quotes`, REST-resyncing after any gap. `backfill`: fill quote history from `/prices-history`. `snapshot`: print one book. |
@@ -91,8 +91,9 @@ can be re-derived deterministically by re-parsing with a newer
 ## Run the wallet ingestor
 
 ```
-uv run theta-wallet-backfill seed                       # leaderboards → candidates → promote
+uv run theta-wallet-backfill seed                       # leaderboards + tape → candidates → promote
 uv run theta-wallet-backfill seed --market 0xcond…      # also seed that market's top holders
+#   tape floor: TAPE_MIN_USD (default 500) — fills at or above it seed a candidate
 uv run theta-wallet-backfill run                        # backfill promoted wallets
 uv run theta-wallet-backfill run --wallet 0xabc… --max-pages 2
 ```

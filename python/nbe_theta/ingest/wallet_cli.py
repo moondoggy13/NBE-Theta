@@ -21,7 +21,7 @@ from nbe_theta.common.http import HttpxFetcher
 from nbe_theta.common.logging import configure_logging, get_logger
 from nbe_theta.ingest.archive import FsArchive
 from nbe_theta.ingest.backfill import WalletBackfillIngestor
-from nbe_theta.ingest.candidates import CandidateSeeder
+from nbe_theta.ingest.candidates import CandidateSeeder, SeedConfig
 from nbe_theta.ingest.dataapi import DataApiClient
 from nbe_theta.ingest.ratelimit import RateLimiter
 from nbe_theta.ingest.wallet_store import PostgresWalletStore
@@ -53,7 +53,15 @@ def seed(
     limiter = RateLimiter(settings.data_api_min_interval_s)
     with connect(settings.database_url) as conn:
         store = PostgresWalletStore(conn)
-        seeder = CandidateSeeder(_client(settings), store, limiter)
+        seeder = CandidateSeeder(
+            _client(settings),
+            store,
+            limiter,
+            SeedConfig(
+                large_trade_min_usd=settings.tape_min_usd,
+                large_trade_limit=settings.tape_limit,
+            ),
+        )
         result = seeder.run(condition_ids=list(market) or None)
     log.info("seed done", seeded=result.seeded, promoted=result.promoted)
 

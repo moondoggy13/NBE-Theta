@@ -24,7 +24,7 @@ from typing import Any
 
 from nbe_theta.common.http import Fetcher
 
-PARSER_VERSION = "data-api-1"
+PARSER_VERSION = "data-api-2"
 VENUE = "polymarket"
 CHAIN_ID = 137  # Polygon
 
@@ -86,10 +86,23 @@ def _dt_from_unix(v: Any) -> datetime | None:
 
 
 def _addr(v: Any) -> str | None:
+    """Lowercased 0x-address, or None.
+
+    Shape is enforced here rather than downstream: an unparseable
+    address is never useful, and letting one through seeds a junk
+    ``wallets``/``wallet_candidates`` row that no later stage removes.
+    This is the same pattern ``VenueTrade.wallet`` pins, applied at the
+    parse boundary so the non-contract paths (candidates, leaderboard,
+    holders) get it too. Lowercasing is what makes a checksum-cased and
+    a lowercase report of one wallet a single identity.
+    """
+
     if not isinstance(v, str):
         return None
     s = v.strip().lower()
-    return s or None
+    if len(s) != 42 or not s.startswith("0x"):
+        return None
+    return s if all(c in "0123456789abcdef" for c in s[2:]) else None
 
 
 def _side(v: Any) -> str | None:
@@ -97,6 +110,28 @@ def _side(v: Any) -> str | None:
         return None
     s = v.strip().upper()
     return s if s in {"BUY", "SELL"} else None
+
+
+def _canonical_decimal(d: Decimal) -> str:
+    """Representation-independent fixed-point form, for the dedupe id.
+
+    The id must be stable across REPRESENTATIONS of the same number,
+    not just across values. The Data API returns prices/sizes as
+    strings and is already known to mix forms (which is why ``_dec``
+    coerces via ``str(v)``), so ``"0.40"`` and ``0.4`` are the same
+    fill and must hash identically — otherwise the unique constraint
+    on (venue, source_trade_id) does not fire and the trade is
+    inserted twice. Duplicate fills propagate into ledger
+    reconstruction and wallet scoring, so this is load-bearing.
+
+    ``normalize()`` strips trailing zeros (and may yield an exponent,
+    which ``format(..., "f")`` renders back to fixed-point); zero is
+    collapsed so ``-0``/``0.0``/``0`` share one form.
+    """
+
+    if not d.is_finite():  # pragma: no cover — _dec already filters these
+        return "0"
+    return format(d.normalize() if d != 0 else Decimal(0), "f")
 
 
 def _synthesize_trade_id(
@@ -120,8 +155,8 @@ def _synthesize_trade_id(
             "c": condition_id,
             "o": outcome_token_id,
             "s": side,
-            "p": format(price, "f"),
-            "q": format(quantity, "f"),
+            "p": _canonical_decimal(price),
+            "q": _canonical_decimal(quantity),
             "t": int(occurred_at.timestamp()),
             "tx": tx_hash or "",
         },
@@ -226,6 +261,31 @@ class DataApiClient:
                 h = parse_holder(r, condition_id)
                 if h is not None:
                     out.append(h)
+        return out
+
+    def recent_trades(self, min_usd: float = 0.0, limit: int = 100) -> list[ParsedTrade]:
+        """The global tape: newest taker fills across ALL wallets, floored
+        at a USDC notional.
+
+        This is the one discovery source that finds a wallet the moment
+        it acts, rather than after it has already climbed a leaderboard
+        or accumulated a top-holder position. The notional floor is
+        applied server-side (``filterType=CASH``), so a high floor costs
+        the same single request as a low one.
+        """
+
+        params: dict[str, Any] = {"takerOnly": "true", "limit": limit}
+        if min_usd > 0:
+            params["filterType"] = "CASH"
+            params["filterAmount"] = min_usd
+        raw, _ = self._fetcher.get_page("/trades", params)
+        rows = raw if isinstance(raw, list) else []
+        out: list[ParsedTrade] = []
+        for r in rows:
+            if isinstance(r, dict):
+                t = parse_trade(r)
+                if t is not None:
+                    out.append(t)
         return out
 
     def iter_trades(

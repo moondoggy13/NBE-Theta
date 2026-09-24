@@ -6,13 +6,16 @@ cheap, none requiring a full history backfill. A materiality filter then
 promotes the wallets worth the expensive backfill (PR 4's `run`).
 
 Priority scoring is deliberately simple and interpretable: rank-based
-for leaderboards (top of the board scores highest), magnitude-based for
-holders/large-trades. It is a triage signal, not a skill score — skill
-is measured later (PR 5) from reconstructed history.
+for leaderboards and top-holders (top of the board scores highest),
+magnitude-based for the global tape (no board to rank against, so the
+notional is log-scaled onto the same [0, 1] range). It is a triage
+signal, not a skill score — skill is measured later (PR 5) from
+reconstructed history.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -30,6 +33,11 @@ class SeedConfig:
     leaderboard_orders: tuple[str, ...] = ("pnl", "volume")
     leaderboard_limit: int = 100
     holder_limit: int = 50
+    # Global-tape seeding: only consider taker fills at or above this
+    # USDC notional. A fill this size is materially interesting on its
+    # own, which is why the tape needs no rank to score against.
+    large_trade_min_usd: float = 500.0
+    large_trade_limit: int = 100
     # Promote a candidate once its best priority across sources clears
     # this bar. Kept low initially — the backfill itself is the next
     # filter, and PR 5's scoring is the real gate.
@@ -96,6 +104,34 @@ class CandidateSeeder:
             self._store.commit()
         return seeded
 
+    def seed_large_trades(self) -> int:
+        """Seed from the global tape — wallets taking size RIGHT NOW.
+
+        The other two sources are lagging by construction: a leaderboard
+        ranks what already paid off, and a top-holder list needs the
+        position to already be large. The tape is the only one that
+        surfaces a wallet on its first material fill.
+
+        Priority is magnitude-based rather than rank-based (there is no
+        board to rank against), mapped onto the same [0, 1] scale the
+        other sources use so one promotion threshold governs all three:
+        log10 keeps a single whale from dwarfing the field, and $1M
+        saturates at 1.0.
+        """
+
+        seeded = 0
+        now = self._now()
+        self._limiter.acquire()
+        trades = self._client.recent_trades(
+            self._cfg.large_trade_min_usd, self._cfg.large_trade_limit
+        )
+        for t in trades:
+            priority = min(1.0, math.log10(1.0 + float(t.notional)) / 6.0)
+            self._store.upsert_candidate(t.wallet, "large-trade", priority, now)
+            seeded += 1
+        self._store.commit()
+        return seeded
+
     def promote(self) -> int:
         """Promote up to ``promote_max`` unpromoted candidates whose best
         priority clears the threshold."""
@@ -113,6 +149,7 @@ class CandidateSeeder:
         run_id = self._store.start_run("wallet-candidates", None)
         try:
             seeded = self.seed_leaderboards()
+            seeded += self.seed_large_trades()
             if condition_ids:
                 seeded += self.seed_holders(condition_ids)
             promoted = self.promote()
