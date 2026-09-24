@@ -11,7 +11,16 @@ export { ExecutionCoordinator } from "./coordinator.js";
 export type { DispatchOutcome, RunState, SkipReason } from "./coordinator.js";
 export { assertLiveAllowed, readLiveGate, LiveGateError } from "./config.js";
 export type { EnvLike, LiveGate } from "./config.js";
-export { CLAIM_SQL, RELEASE_SQL, TERMINAL_SQL, backoffSeconds, isRedispatchable } from "./outbox.js";
+export {
+  CLAIM_SQL,
+  RECLAIM_SQL,
+  RELEASE_SQL,
+  TERMINAL_SQL,
+  LEASE_SECONDS,
+  assertLeaseExceedsWork,
+  backoffSeconds,
+  isRedispatchable,
+} from "./outbox.js";
 export type { ClaimedIntent } from "./outbox.js";
 export { ClobSimulator } from "./venues/simulator.js";
 export { PolymarketClobVenue } from "./venues/polymarket.js";

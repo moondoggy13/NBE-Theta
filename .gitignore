@@ -58,3 +58,6 @@ next-env.d.ts
 
 # Python worker raw-response archive (local FS)
 /python/data/
+
+# vitest JSON reporter output (CI assertion artifact)
+outbox-results.json

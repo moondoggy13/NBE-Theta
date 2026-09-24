@@ -14,21 +14,65 @@
  * with money attached, and neither is detectable after the fact.
  *
  * `FOR UPDATE SKIP LOCKED` gives multiple executor replicas a safe claim
- * with no coordinator: each row goes to exactly one worker, and a worker
- * that dies mid-claim releases its lock when its transaction aborts.
+ * with no coordinator: each row goes to exactly one worker.
+ *
+ * **What the lock does not do** — this used to say a worker that dies
+ * mid-claim "releases its lock when its transaction aborts", which is
+ * true only of a worker that dies *before* the claim commits. `CLAIM_SQL`
+ * is a committed UPDATE: once it returns there is no transaction and no
+ * lock, and what stops a second worker taking the row is the `status`
+ * value, not `SKIP LOCKED`. So the ordinary crash — claim commits, then
+ * the process dies — left the row in `claimed` where nothing selects it,
+ * forever.
+ *
+ * A claim is therefore a **lease** (migration 020). It carries an expiry,
+ * and `RECLAIM_SQL` returns expired claims to `ready`. See
+ * docs/adr/0006-intent-leases.md.
  *
  * This module is SQL-shaped rather than an ORM on purpose — the claim
  * query's exact semantics are the safety property, and they should be
  * readable in one place.
  */
 
+/**
+ * How long a claim stays valid.
+ *
+ * This must comfortably exceed the longest time a worker can legitimately
+ * hold an intent, because a lease that expires under a *live* worker
+ * causes the same intent to be dispatched twice — the v2 failure class,
+ * and far worse than the stranding it is meant to fix. Five minutes
+ * against a coordinator whose work is a single venue call with a
+ * second-scale timeout is a wide margin on purpose.
+ *
+ * `assertLeaseExceedsWork` below keeps that relationship honest rather
+ * than leaving it to a comment.
+ */
+export const LEASE_SECONDS = 300;
+
+/**
+ * Guard the invariant that makes the reaper safe.
+ *
+ * Called with the coordinator's worst-case per-intent budget. If someone
+ * later raises a venue timeout past the lease, this throws at startup
+ * instead of silently enabling double dispatch.
+ */
+export function assertLeaseExceedsWork(maxWorkSeconds: number): void {
+  if (maxWorkSeconds >= LEASE_SECONDS) {
+    throw new Error(
+      `lease of ${LEASE_SECONDS}s does not exceed max work time of ${maxWorkSeconds}s; ` +
+        "a lease that can expire under a live worker causes duplicate dispatch",
+    );
+  }
+}
+
 export const CLAIM_SQL = `
   update execution_intents
-     set status        = 'claimed',
-         claimed_at    = now(),
-         claimed_by    = $1,
-         attempt_count = attempt_count + 1,
-         updated_at    = now()
+     set status           = 'claimed',
+         claimed_at       = now(),
+         claimed_by       = $1,
+         lease_expires_at = now() + ($3 || ' seconds')::interval,
+         attempt_count    = attempt_count + 1,
+         updated_at       = now()
    where id in (
      select id
        from execution_intents
@@ -40,6 +84,44 @@ export const CLAIM_SQL = `
       limit $2
    )
   returning id, strategy_type, dedupe_key, payload, attempt_count, expires_at
+`;
+
+/**
+ * Return expired claims to `ready`.
+ *
+ * Three things this is careful about, each of which would be a bug in a
+ * more eager version:
+ *
+ * 1. **It only touches `status = 'claimed'`.** A row in
+ *    `reconciliation_break` — we submitted and do not know the outcome —
+ *    must never re-enter the queue, and neither must anything terminal.
+ *    Scoping to `claimed` excludes them by construction rather than by a
+ *    list someone has to maintain.
+ * 2. **It only touches leases that have actually expired.** `now() >
+ *    lease_expires_at`, never `>=` against a lease computed in the same
+ *    statement, and never a row whose lease is still running. Reclaiming
+ *    live work dispatches the same intent twice.
+ * 3. **It applies backoff rather than re-offering immediately.** An
+ *    intent that crashes its worker will crash the next one too; without
+ *    backoff the reaper turns one poison message into a hot loop.
+ *    `attempt_count` is already incremented by CLAIM_SQL, so the existing
+ *    backoff schedule applies unchanged.
+ *
+ * A NULL lease means a claim made before migration 020 — already
+ * stranded, by definition — so it is treated as expired.
+ */
+export const RECLAIM_SQL = `
+  update execution_intents
+     set status           = 'ready',
+         claimed_at       = null,
+         claimed_by       = null,
+         lease_expires_at = null,
+         available_at     = now() + ($1 || ' seconds')::interval,
+         last_error       = 'lease expired; reclaimed from ' || coalesce(claimed_by, 'unknown'),
+         updated_at       = now()
+   where status = 'claimed'
+     and (lease_expires_at is null or lease_expires_at < now())
+  returning id, dedupe_key, attempt_count
 `;
 
 /**
