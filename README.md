@@ -193,6 +193,10 @@ Also:
   valid login is not authorisation
 - `docs/adr/0005-alpha-gate-verdict.md` — why the alpha gate needed an
   interval, event clustering, and the ability to decline
+- `docs/adr/0006-intent-leases.md` — why a claim on an execution intent
+  is a lease, and what a crashed worker used to cost
+- `docs/adr/0007-intent-producer.md` — closing the Python → TypeScript
+  seam, and why live enqueues rather than simulates
 - `AGENTS.md` — development contract (boundaries, migrations, tests, don'ts)
 - `CLAUDE.md` — repo navigation + what never to reintroduce
 - `python/README.md` — worker commands and layout

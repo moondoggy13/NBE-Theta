@@ -157,6 +157,30 @@ Related invariants:
   stored `true` looks identical whether or not anyone read a legal
   opinion.
 
+## The execution seam (PR 15) — live enqueues, it does not simulate
+
+`python/nbe_theta/signals/intents.py` is the producer half of the outbox
+ADR-0002 built the whole two-language architecture around. Before PR 15
+nothing had ever written an `execution_intents` row.
+
+- **`mode` decides where the decision goes, not how it is labelled.**
+  `shadow` runs the shadow broker and opens a shadow lot (the gate's
+  evidence). `live` stops after sizing and enqueues an intent — no
+  simulation, no lot. Before PR 15, `mode` only tagged the lot, so live
+  simulated a fill and recorded a position the account does not hold,
+  which makes every cap and drawdown check read off fiction.
+- **The intent is enqueued in the SAME transaction as its evaluation.**
+  Do not commit between them, and do not move the enqueue to a
+  different cursor. That atomicity is the reason ADR-0002 rejected
+  Redis.
+- **Shadow must not enqueue.** It already has a fill path; enqueuing as
+  well double-counts every copied trade and corrupts the gate's numbers.
+- **Build the payload through the Pydantic contract**, never as a dict.
+  A malformed intent must fail at the producer, not after the claim.
+- **`venue_orders` and `venue_fills` are still written by nothing.** The
+  return half of the seam does not exist, so live currently produces
+  intents and no position record. See ADR-0007.
+
 ## The intent outbox (PR 14) — a claim is a lease
 
 `CLAIM_SQL` commits `status='claimed'` and only ever selects rows

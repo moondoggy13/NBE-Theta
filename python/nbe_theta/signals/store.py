@@ -8,6 +8,7 @@ store that only kept the accepted ones could not produce it.
 from __future__ import annotations
 
 import json
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -15,6 +16,7 @@ from decimal import Decimal
 import psycopg
 
 from nbe_theta.signals.actions import SourceAction
+from nbe_theta.signals.intents import build_order_intent, enqueue, intent_dedupe_key
 from nbe_theta.signals.lots import StrategyLot
 from nbe_theta.signals.pipeline import Evaluation
 
@@ -27,7 +29,9 @@ class SignalStore(ABC):
         """Insert an action; return its id, or None if already present."""
 
     @abstractmethod
-    def record_evaluation(self, ev: Evaluation, action_id: str | None) -> str | None: ...
+    def record_evaluation(
+        self, ev: Evaluation, action_id: str | None, *, emit_intent: bool = False
+    ) -> str | None: ...
 
     @abstractmethod
     def record_lot(self, lot: StrategyLot, evaluation_id: str | None) -> str: ...
@@ -40,6 +44,9 @@ class SignalStore(ABC):
 class InMemorySignalStore(SignalStore):
     actions: dict[str, SourceAction] = field(default_factory=dict)
     evaluations: list[Evaluation] = field(default_factory=list)
+    #: Dedupe keys of intents that would have been enqueued. Lets a
+    #: unit test assert on the seam without a database.
+    intents: list[str] = field(default_factory=list)
     lots: dict[str, StrategyLot] = field(default_factory=dict)
 
     def record_action(self, action: SourceAction) -> str | None:
@@ -49,8 +56,12 @@ class InMemorySignalStore(SignalStore):
         self.actions[key] = action
         return key
 
-    def record_evaluation(self, ev: Evaluation, action_id: str | None) -> str | None:
+    def record_evaluation(
+        self, ev: Evaluation, action_id: str | None, *, emit_intent: bool = False
+    ) -> str | None:
         self.evaluations.append(ev)
+        if emit_intent and ev.accepted:
+            self.intents.append(intent_dedupe_key(ev))
         return str(len(self.evaluations))
 
     def record_lot(self, lot: StrategyLot, evaluation_id: str | None) -> str:
@@ -62,8 +73,17 @@ class InMemorySignalStore(SignalStore):
 
 
 class PostgresSignalStore(SignalStore):
-    def __init__(self, conn: psycopg.Connection) -> None:
+    """Postgres-backed signal persistence.
+
+    ``account_id`` is required only to enqueue execution intents; a
+    shadow-only store never uses it. It is not defaulted, because an
+    intent submitted against the wrong account is exactly the kind of
+    mistake that should not be reachable by forgetting an argument.
+    """
+
+    def __init__(self, conn: psycopg.Connection, *, account_id: str | None = None) -> None:
         self._conn = conn
+        self._account_id = account_id
 
     def _cur(self) -> psycopg.Cursor:
         return self._conn.cursor()
@@ -104,7 +124,9 @@ class PostgresSignalStore(SignalStore):
             row = cur.fetchone()
         return str(row[0]) if row else None
 
-    def record_evaluation(self, ev: Evaluation, action_id: str | None) -> str | None:
+    def record_evaluation(
+        self, ev: Evaluation, action_id: str | None, *, emit_intent: bool = False
+    ) -> str | None:
         size = ev.size
         with self._cur() as cur:
             cur.execute(
@@ -159,6 +181,37 @@ class PostgresSignalStore(SignalStore):
                         json.dumps(f.book_snapshot),
                     ),
                 )
+
+            # ── The seam ──────────────────────────────────────────────
+            #
+            # Same cursor, same transaction, no commit between. This is
+            # the property ADR-0002 rejected Redis for, stated there as:
+            # "an execution intent must be enqueued in the same
+            # transaction that records why it exists. A queue that lives
+            # outside the database cannot participate in that
+            # transaction, so a crash between 'record the decision' and
+            # 'enqueue the order' either loses an order or duplicates
+            # one." Until PR 15 nothing enqueued, so the guarantee had
+            # never actually been exercised.
+            #
+            # Guarded on `evaluation_id` as well as `emit_intent`: a
+            # None id means the evaluation hit the unique constraint on
+            # (source_action_id, policy_version) and this decision is
+            # already recorded, so enqueuing again would be the second
+            # order the dedupe exists to prevent.
+            if emit_intent and evaluation_id is not None and ev.accepted:
+                if self._account_id is None:
+                    raise ValueError(
+                        "cannot enqueue an execution intent without an account_id; "
+                        "construct PostgresSignalStore(conn, account_id=...)"
+                    )
+                intent = build_order_intent(
+                    ev,
+                    account_id=self._account_id,
+                    now=ev.action.detected_at,
+                    signal_id=uuid.UUID(evaluation_id),
+                )
+                enqueue(cur, intent, dedupe_key=intent_dedupe_key(ev))
         return evaluation_id
 
     def record_lot(self, lot: StrategyLot, evaluation_id: str | None) -> str:
