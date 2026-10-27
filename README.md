@@ -12,6 +12,13 @@ through an independently risk-gated executor.
 > hypothesis has **not** been validated against real data (see "The alpha
 > gate" below), and nothing goes live before that, a passed shadow gate,
 > and a documented compliance review.
+>
+> A real account **can** now be connected and verified
+> (`pnpm executor:preflight`,
+> `docs/runbooks/connect-polymarket-account.md`). Connecting it is not
+> arming it: the order *return* path is still unbuilt, so live mode would
+> place orders the system does not record. That gap is listed in the
+> runbook and in `docs/adr/0007-intent-producer.md`.
 
 The pre-pivot BTC/Coinbase system has been **deleted** from this
 repository. It survives only behind the git tag `btc-v1-final`. See
@@ -58,6 +65,11 @@ uv run theta-score-wallets walkforward --start ... --end ...
 uv run theta-signals summary           # fill rate + rejection histogram
 uv run theta-signals gate              # the promotion decision packet
 uv run theta-signals gate --record     # …and persist it (required for live)
+
+# Execution
+pnpm executor:preflight       # verify a connected Polymarket account.
+                              #   Read-only: places no order, signs no
+                              #   transaction, moves no funds.
 
 # Infra
 docker compose up -d db       # local Postgres (supabase/postgres image)
@@ -168,7 +180,11 @@ are machine-checked; the fourth is deliberately not.
 
 Also:
 
-- No private key in the web process or in CI.
+- No private key in the web process or in CI. The signer is read only
+  by `apps/executor`, preferably from a mounted file rather than an env
+  var, and is wrapped in a `Secret` that renders as `[redacted]` through
+  `String()`, `JSON.stringify` and `console.log` — a backstop for the
+  one log line that eventually prints a config object.
 - Raw wallet-intelligence tables are service-role only — never exposed
   through anonymous RLS.
 - Control routes (`/api/kill-switch`, `/api/watchlist`, `/api/console/*`)
@@ -193,6 +209,8 @@ Also:
   valid login is not authorisation
 - `docs/adr/0005-alpha-gate-verdict.md` — why the alpha gate needed an
   interval, event clustering, and the ability to decline
+- `docs/runbooks/connect-polymarket-account.md` — connecting a real
+  account and wallet, what preflight proves, and what still gates live
 - `docs/adr/0006-intent-leases.md` — why a claim on an execution intent
   is a lease, and what a crashed worker used to cost
 - `docs/adr/0007-intent-producer.md` — closing the Python → TypeScript
