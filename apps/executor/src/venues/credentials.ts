@@ -370,7 +370,29 @@ function loadBaseUrl(env: EnvLike, key: string, fallback: string): string {
     // An http endpoint would carry the L2 HMAC headers in clear text.
     throw new CredentialError(`${key} must be https, got ${parsed.protocol}`);
   }
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(raw);
+}
+
+/**
+ * Removes trailing `/` so a joined path cannot double up its separator.
+ *
+ * A linear scan rather than `replace(/\/+$/, "")`, which CodeQL flags
+ * as polynomial ReDoS and which measurement confirms: anchoring an
+ * unbounded run at `$` makes the engine retry the run from every
+ * starting position whenever `$` fails, costing O(n²). The trigger is
+ * a long slash run followed by a non-slash (40k slashes took 2.2s),
+ * not a run at the end of the string, which matches on the first
+ * attempt. `new URL()` accepts that form, so it reaches here.
+ *
+ * The value is an operator-set env var rather than attacker-controlled,
+ * so the practical risk was slight — but a scan is no harder to read
+ * and settles the question instead of leaving it to be re-argued at the
+ * next audit.
+ */
+function stripTrailingSlashes(raw: string): string {
+  let end = raw.length;
+  while (end > 0 && raw[end - 1] === "/") end -= 1;
+  return raw.slice(0, end);
 }
 
 /**

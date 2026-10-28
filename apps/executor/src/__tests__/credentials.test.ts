@@ -236,6 +236,38 @@ describe("endpoints and chain", () => {
     expect(c.clobBaseUrl).toBe("https://clob.example.com");
   });
 
+  it("strips a long run of trailing slashes", () => {
+    const host = "https://clob.example.com";
+    const c = loadCredentials(env({ CLOB_BASE_URL: `${host}${"/".repeat(5_000)}` }), noFiles);
+    expect(c.clobBaseUrl).toBe(host);
+  });
+
+  it("handles a long slash run followed by a non-slash in linear time", () => {
+    // Regression for a CodeQL polynomial-ReDoS finding. This was
+    // `replace(/\/+$/, "")`. The pathological input is NOT a run of
+    // slashes at the end — that matches on the first attempt — but a
+    // run followed by something else, so `$` fails and the engine
+    // retries the run from every starting position. Measured on the old
+    // implementation: 20k slashes 538ms, 40k 2159ms, 80k 8227ms, a
+    // clean O(n^2). The linear scan is ~0.01ms at every size.
+    //
+    // `new URL()` accepts this form, so it really does reach the strip
+    // step rather than being rejected first.
+    const raw = `https://clob.example.com/${"/".repeat(40_000)}x`;
+    const started = Date.now();
+    const c = loadCredentials(env({ CLOB_BASE_URL: raw }), noFiles);
+    // Nothing to strip: the value ends in a non-slash.
+    expect(c.clobBaseUrl).toBe(raw);
+    // The old code took ~2.2s here; the ceiling leaves ample room for a
+    // slow CI runner while still failing a reintroduced regex.
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it("leaves an interior slash alone", () => {
+    const c = loadCredentials(env({ CLOB_BASE_URL: "https://clob.example.com/v2/" }), noFiles);
+    expect(c.clobBaseUrl).toBe("https://clob.example.com/v2");
+  });
+
   it("refuses a plaintext endpoint, which would leak the L2 HMAC headers", () => {
     expect(() => loadCredentials(env({ CLOB_BASE_URL: "http://clob.example.com" }), noFiles)).toThrow(
       /must be https/,
