@@ -25,3 +25,35 @@ export type { ClaimedIntent } from "./outbox.js";
 export { ClobSimulator } from "./venues/simulator.js";
 export { PolymarketClobVenue } from "./venues/polymarket.js";
 export type { ClobSigningClient } from "./venues/polymarket.js";
+export {
+  CredentialError,
+  Secret,
+  SIGNATURE_TYPES,
+  describeCredentials,
+  isProxiedScheme,
+  loadCredentials,
+  normalizeHex,
+} from "./venues/credentials.js";
+export type {
+  ApiCredentials,
+  ResolvedCredentials,
+  SignatureTypeName,
+} from "./venues/credentials.js";
+/**
+ * The concrete signing client is NOT re-exported here.
+ *
+ * `venues/clob-client.ts` dynamically imports viem and the venue SDK,
+ * and this index is reachable from the Next.js build graph. A static
+ * re-export would pull signing code into `apps/web`, which AGENTS.md
+ * forbids outright. Import it directly from the executor process that
+ * needs it — `bin/preflight.ts` is the example.
+ */
+export { exitCode, formatReport, runPreflight } from "./preflight.js";
+export type {
+  Check,
+  CheckState,
+  Connect,
+  PreflightReport,
+  PreflightTarget,
+  PreflightVerdict,
+} from "./preflight.js";

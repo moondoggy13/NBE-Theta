@@ -28,7 +28,19 @@ node_modules/
 
 # misc
 .DS_Store
+
+# Secret material. AGENTS.md lists these patterns; they were only
+# partially covered before (`*.pem` and `.env*`), and PR 16 introduced a
+# file-based signer key (`SIGNER_PRIVATE_KEY_FILE`), so the gap is now
+# reachable. Unanchored so a nested app cannot opt out.
 *.pem
+*.key
+**/signer*.json
+**/keystore*.json
+**/wallet-secret*
+apps/executor/.secrets/
+secret*/
+**/secret*/
 
 # debug
 npm-debug.log*

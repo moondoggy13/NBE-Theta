@@ -8,6 +8,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@nbe-theta/execution-domain": "workspace:*"
+    "@nbe-theta/execution-domain": "workspace:*",
+    "@polymarket/clob-client": "^5.8.1",
+    "viem": "^2.57.12"
   }
 }
